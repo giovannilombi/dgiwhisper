@@ -11,8 +11,8 @@ import packageJson from '../../package.json';
 initAnalytics();
 registerMediaProtocolScheme();
 
-const APP_DISPLAY_NAME = 'WhisperDesk';
-const APP_USER_MODEL_ID = 'com.whisperdesk.app';
+const APP_DISPLAY_NAME = 'DGI-Whisper';
+const APP_USER_MODEL_ID = 'com.dgi-whisper.app';
 
 let mainWindow: BrowserWindow | null = null;
 let ipcHandlersRegistered = false;

@@ -1,17 +1,17 @@
 {
-  "name": "whisperdesk",
+  "name": "dgi-whisper",
   "version": "1.10.1",
   "type": "module",
   "description": "Desktop transcription app powered by whisper.cpp",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/PVAS-Development/whisperdesk.git"
+    "url": "https://github.com/giovannilombi/dgiwhisper.git"
   },
   "bugs": {
-    "url": "https://github.com/PVAS-Development/whisperdesk/issues"
+    "url": "https://github.com/giovannilombi/dgiwhisper/issues"
   },
-  "homepage": "https://github.com/PVAS-Development/whisperdesk#readme",
+  "homepage": "https://github.com/giovannilombi/dgiwhisper#readme",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -114,9 +114,9 @@
     "wait-on": "^9.0.3"
   },
   "build": {
-    "appId": "com.whisperdesk.app",
-    "productName": "WhisperDesk",
-    "copyright": "Copyright © 2025 WhisperDesk",
+    "appId": "com.dgi-whisper.app",
+    "productName": "DGI-Whisper",
+    "copyright": "Copyright © 2026 Design Group Italia",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -157,7 +157,7 @@
       "notarize": true
     },
     "dmg": {
-      "title": "WhisperDesk",
+      "title": "DGI-Whisper",
       "backgroundColor": "#f5f5f7",
       "window": {
         "width": 540,
@@ -178,8 +178,8 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "PVAS-Development",
-      "repo": "whisperdesk"
+      "owner": "giovannilombi",
+      "repo": "dgiwhisper"
     }
   }
 }
