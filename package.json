@@ -149,12 +149,11 @@
         }
       ],
       "icon": "build/icon.icns",
-      "hardenedRuntime": true,
+      "identity": null,
+      "hardenedRuntime": false,
       "gatekeeperAssess": false,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
       "darkModeSupport": true,
-      "notarize": true
+      "notarize": false
     },
     "dmg": {
       "title": "DGI-Whisper",

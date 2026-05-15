@@ -130,12 +130,12 @@ brew install ffmpeg
 
 ### App won't open (macOS Gatekeeper)
 
-The app is **code-signed and notarized** by Apple, so it should open normally. If you still see a warning:
+DGI-Whisper is currently distributed **unsigned**, so the first time you open it macOS Gatekeeper will block it. To allow it:
 
-1. Right-click the app and select "Open"
+1. Right-click the app in Applications and select "Open"
 2. Click "Open" in the dialog that appears
 
-For builds from source (unsigned), you may need to run:
+If that doesn't work (e.g. "app is damaged" message), remove the quarantine attribute and reopen:
 
 ```bash
 xattr -cr /Applications/DGI-Whisper.app
@@ -147,7 +147,7 @@ xattr -cr /Applications/DGI-Whisper.app
 - **No Cloud Uploads**: We do not upload your media files or transcriptions to any server.
 - **Private Media Preview**: Transcript playback uses local, approved media files only. Preview URLs are temporary and are not raw filesystem paths.
 - **Anonymous Analytics**: We collect minimal, anonymous usage data (e.g., app launches, feature usage) to improve the app. No personal data or file content is collected.
-- **Code Signing**: The app is **code-signed and notarized** by Apple for your safety.
+- **Code Signing**: Currently unsigned. macOS Gatekeeper will require a one-time manual approval to launch the app — see [Troubleshooting](#app-wont-open-macos-gatekeeper).
 
 ## ☕ Support the Project
 
