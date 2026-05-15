@@ -140,25 +140,25 @@ function createMenu() {
       role: 'help',
       submenu: [
         {
-          label: 'About WhisperDesk',
+          label: 'About DGI-Whisper',
           click: async () => {
-            const author = 'Pedro Siqueira';
-            const githubUrl = 'https://github.com/pedrovsiqueira';
-            const linkedinUrl = 'https://www.linkedin.com/in/pedrovsiqueira';
+            const repoUrl = 'https://github.com/giovannilombi/dgiwhisper';
+            const upstreamUrl = 'https://github.com/PVAS-Development/whisperdesk';
 
             const result = await dialog.showMessageBox({
               type: 'info',
-              title: 'About WhisperDesk',
-              message: `WhisperDesk ${appVersion}`,
-              detail: `Author: ${author}`,
-              buttons: ['Open GitHub', 'Open LinkedIn', 'Close'],
+              title: 'About DGI-Whisper',
+              message: `DGI-Whisper ${appVersion}`,
+              detail:
+                'Maintained by Design Group Italia – Team PM.\nBased on WhisperDesk by Pedro Siqueira.',
+              buttons: ['Open Repository', 'Open WhisperDesk', 'Close'],
               cancelId: 2,
             });
 
             if (result.response === 0) {
-              await shell.openExternal(githubUrl);
+              await shell.openExternal(repoUrl);
             } else if (result.response === 1) {
-              await shell.openExternal(linkedinUrl);
+              await shell.openExternal(upstreamUrl);
             }
           },
         },
@@ -166,7 +166,7 @@ function createMenu() {
         {
           label: 'Learn More',
           click: async () => {
-            await shell.openExternal('https://github.com/pedrovsiqueira/whisperdesk');
+            await shell.openExternal('https://github.com/giovannilombi/dgiwhisper');
           },
         },
       ],
