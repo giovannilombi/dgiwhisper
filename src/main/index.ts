@@ -3,7 +3,6 @@ import type { MenuItemConstructorOptions } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc';
 import { initAnalytics, trackEvent, AnalyticsEvents } from './services/analytics';
-import { initAutoUpdater, checkForUpdates } from './services/auto-updater';
 import { safeSend } from './utils/safe-send';
 import { registerMediaProtocolHandler, registerMediaProtocolScheme } from './utils/media-protocol';
 import packageJson from '../../package.json';
@@ -19,8 +18,6 @@ let ipcHandlersRegistered = false;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 const appVersion = packageJson.version;
-
-const UPDATE_CHECK_DELAY_MS = 3000;
 
 app.setName(APP_DISPLAY_NAME);
 
@@ -165,16 +162,6 @@ function createMenu() {
             }
           },
         },
-        {
-          label: 'Check for Updates...',
-          click: () => {
-            if (!isDev) {
-              checkForUpdates().catch((err) => {
-                console.error('Failed to check for updates:', err);
-              });
-            }
-          },
-        },
         { type: 'separator' as const },
         {
           label: 'Learn More',
@@ -240,25 +227,11 @@ const createWindow = () => {
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
-
-  if (!isDev) {
-    mainWindow.once('ready-to-show', () => {
-      setTimeout(() => {
-        checkForUpdates().catch((err) => {
-          console.error('Failed to check for updates on startup:', err);
-        });
-      }, UPDATE_CHECK_DELAY_MS);
-    });
-  }
 };
 
 app.on('ready', () => {
   registerMediaProtocolHandler();
   createWindow();
-
-  if (!isDev) {
-    initAutoUpdater(() => mainWindow);
-  }
 });
 
 app.on('before-quit', () => {
