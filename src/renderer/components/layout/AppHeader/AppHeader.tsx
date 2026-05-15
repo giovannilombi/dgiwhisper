@@ -24,10 +24,10 @@ function AppHeader(): React.JSX.Element {
       <header className="app-header">
         <div className="header-content">
           <div className="header-left">
-            <img src={appIcon} alt="WhisperDesk" className="app-logo" />
+            <img src={appIcon} alt="DGI-Whisper" className="app-logo" />
             <div className="header-title">
-              <h1>WhisperDesk</h1>
-              <p>Transcribe audio &amp; video with AI</p>
+              <h1>DGI-Whisper</h1>
+              <p>Local only, privacy-first AI transcription</p>
             </div>
           </div>
           <div className="header-actions">
