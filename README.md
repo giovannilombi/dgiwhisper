@@ -51,16 +51,75 @@ Local only, privacy-first AI transcription.
 
 1. Download the latest `DGIWhisper-x.x.x.dmg` from [Releases](https://github.com/giovannilombi/dgiwhisper/releases)
 2. Open the DMG file
-3. Drag DGI-Whisper to your Applications folder
-4. Launch DGI-Whisper from Applications — it is ready to use out of the box
+3. Drag **DGI-Whisper.app** onto the **Applications** shortcut inside the DMG
+4. Open **Applications** and launch DGI-Whisper
+
+> ⚠️ **First launch only — macOS will block the app.**
+> Because the DMG is currently distributed **unsigned**, on macOS 15 (Sequoia) and newer the right-click → Open trick no longer works. You must explicitly authorise the app once via System Settings:
+>
+> 1. Try to open DGI-Whisper from Applications — macOS shows _"DGI-Whisper cannot be opened because Apple cannot check it for malicious software."_ Click **Done**.
+> 2. Open the Apple menu () → **System Settings** → **Privacy & Security**.
+> 3. Scroll to the bottom of the panel. You will see _"DGI-Whisper was blocked because it is not from an identified developer."_ Click **Open Anyway** next to it.
+> 4. Authenticate with Touch ID or password, then click **Open Anyway** again in the confirmation dialog.
+>
+> From the second launch onwards the app starts normally — these steps are one-time.
+>
+> A copy of these instructions ships as **README.pdf** at the top of the DMG window itself, so end users have them at hand without leaving the installer.
+
+If the app still refuses to open with a "damaged" message (rare, but possible after some downloads), strip the quarantine attribute and retry:
+
+```bash
+xattr -cr /Applications/DGI-Whisper.app
+```
 
 ## 🎮 Usage
 
-1. **Open Files** - Drag and drop audio/video files (single or batch) into the app, or click to browse
-2. **Configure Settings** - Choose your preferred model, language, and output format
-3. **Transcribe** - Click "Transcribe" to process the entire queue sequentially
-4. **Review with Media** - For timestamped output, play the selected media and click transcript segments to jump to the matching audio/video moment
-5. **Save/Copy** - Save the transcription from the save dialog (choose from `.txt`, `.docx`, `.pdf`, `.md`, `.srt`, or `.vtt` formats) or copy to clipboard
+### 1. Add files
+
+- Drag and drop audio or video files (single or batch) into the drop zone, or click it to browse.
+- Multiple files queue up and are processed sequentially.
+- Duplicates (same path / same fingerprint) are auto-skipped.
+
+### 2. Configure the transcription
+
+- **Speaker diarization** — toggle the red/green switch at the top of the Settings panel to enable speaker identification. Click the ⓘ next to it for an in-app explanation of the limits.
+- **Whisper model** — pick the size/quality/speed trade-off (see _Whisper Models_ below). The selected model is downloaded automatically on first use.
+- **Audio language** — `Auto` to let Whisper detect it, or pick from the supported language list.
+- **UI language** — switch the interface between Italian and English with the flag toggle in the top-right header, independently from the audio transcription language.
+
+### 3. Transcribe
+
+Click **Transcribe** (or `⌘ Return`) to process the queue. Progress is shown per item, with a live ETA for batches. Click **Cancel** (or `Esc`) at any point — the running item is interrupted and any in-flight diarization worker is terminated immediately.
+
+### 4. Review the transcript
+
+When **diarization is off** the transcript appears as a single block. You can:
+
+- Click any **timestamp** to jump the inline media player to that moment.
+- Use `⌘ F` to open the inline search bar and step through matches.
+- Toggle the media player on/off from the toolbar.
+
+When **diarization is on** the transcript is grouped by speaker block. For each block you can:
+
+- **Rename the speaker** — click the speaker label (e.g. _Speaker 1_) and type the real name (e.g. _Anna_). The change applies to every block of that cluster across the transcript.
+- **Merge speakers** — when the algorithm split one person across multiple clusters, click **Merge** on a block and pick the target speaker from the dropdown. All blocks of the source cluster collapse into the target.
+- **Split a block** — when the algorithm grouped two people into the same cluster, click **Split** on the wrongly-attributed block to assign it a fresh new speaker that you can then rename.
+
+All edits (names, merges, splits) are saved into the transcription history alongside the original diarization, so re-opening a past transcription brings your refined labels back.
+
+### 5. Export
+
+Save from the toolbar (or `⌘ S`) and pick a format:
+
+- **`.txt`** and **`.md`** — when diarization is on, these formats prepend the speaker label to each block (`Speaker 1: …` for txt, `**Speaker 1:** …` for markdown), using your renamed labels.
+- **`.vtt`** and **`.srt`** — standard subtitle formats with timestamps. Speaker labels are not included in subtitles.
+- **`.docx`** and **`.pdf`** — formatted document export.
+
+Alternatively, use **Copy** (or `⌘ C`) to copy the plain transcription text to the clipboard.
+
+### 6. History
+
+The **History** button in the header (`⌘ H` to toggle) opens the list of every past transcription. Each entry stores the file name, model, language, duration, full text, and — when diarization was on — the speaker segments and your label/merge/split edits. Click any entry to reload it into the main view exactly as you left it.
 
 ### Keyboard Shortcuts
 
