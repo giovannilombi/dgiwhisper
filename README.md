@@ -16,6 +16,7 @@ Local only, privacy-first AI transcription.
 - **Live Batch ETA** - See estimated remaining time while batch processing is running
 - **Completion Notifications** - Native notification when a batch finishes
 - **Multiple Formats** - Supports MP3, WAV, M4A, FLAC, OGG, OPUS, OGA, AMR, WMA, AAC, AIFF, MP4, MOV, AVI, MKV, WebM, WMV, FLV, M4V
+- **Speaker Diarization (optional)** - Toggle on to automatically identify _who spoke when_; rename, merge or split speakers from the UI. Runs fully on-device via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) + pyannote segmentation + 3D-Speaker embeddings (bundled in the DMG, no extra download)
 - **Embedded Media Preview** - Play the selected audio or video beside your transcript
 - **Transcript Navigation** - Click timestamped transcript segments to seek directly to that moment in the media
 - **Secure Local Streaming** - Media previews use a private `whisperdesk-media://` protocol with approved local files only
@@ -35,9 +36,9 @@ Local only, privacy-first AI transcription.
 
 ## 📋 Requirements
 
-- **macOS** 10.15 (Catalina) or later
+- **macOS on Apple Silicon** (M1/M2/M3/M4). The DMG is currently published as `arm64` only — Intel Macs are not officially supported.
 - **FFmpeg** (Required for audio processing)
-- ~500MB disk space (for whisper.cpp and models)
+- ~500MB disk space (for whisper.cpp and models; +45MB if diarization is enabled)
 
 > **Note:** DGI-Whisper requires FFmpeg to process audio files. The app will check for it on startup and guide you if it's missing.
 
