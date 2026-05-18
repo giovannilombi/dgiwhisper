@@ -4,11 +4,13 @@ import { Button } from '../../ui';
 import { useAppTheme, useAppHistory } from '../../../contexts';
 import { useDebugLogs } from '../../../hooks';
 import { DebugLogsModal } from '../../ui/DebugLogsModal';
+import { LanguageSwitcher, useTranslation } from '../../../i18n';
 import appIcon from '../../../assets/icon.png';
 
 function AppHeader(): React.JSX.Element {
   const { theme, toggleTheme } = useAppTheme();
-  const { history, showHistory, toggleHistory } = useAppHistory();
+  const { history, toggleHistory } = useAppHistory();
+  const { t } = useTranslation();
   const {
     logs,
     isOpen: isDebugLogsOpen,
@@ -19,6 +21,8 @@ function AppHeader(): React.JSX.Element {
     clearLogs,
   } = useDebugLogs();
 
+  const themeAria = theme === 'light' ? t('header.themeDark') : t('header.themeLight');
+
   return (
     <>
       <header className="app-header">
@@ -27,7 +31,7 @@ function AppHeader(): React.JSX.Element {
             <img src={appIcon} alt="DGI-Whisper" className="app-logo" />
             <div className="header-title">
               <h1>DGI-Whisper</h1>
-              <p>Local only, privacy-first AI transcription</p>
+              <p>{t('header.claim')}</p>
             </div>
           </div>
           <div className="header-actions">
@@ -36,27 +40,28 @@ function AppHeader(): React.JSX.Element {
               icon={<Terminal size={18} />}
               iconOnly
               onClick={openDebugLogs}
-              title="Debug Logs"
-              aria-label="Open debug logs"
+              title={t('header.debugLogs')}
+              aria-label={t('header.openDebugLogs')}
             />
             <Button
               variant="icon"
               icon={theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
               iconOnly
               onClick={toggleTheme}
-              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+              title={themeAria}
+              aria-label={themeAria}
               className="theme-toggle"
             />
             <Button
               variant="icon"
               icon={<History size={18} />}
               onClick={toggleHistory}
-              title="Transcription History"
-              aria-label={`${showHistory ? 'Hide' : 'Show'} transcription history. ${history.length} items.`}
+              title={t('header.history', { count: history.length })}
+              aria-label={t('header.history', { count: history.length })}
             >
-              History ({history.length})
+              {t('header.history', { count: history.length })}
             </Button>
+            <LanguageSwitcher />
           </div>
         </div>
       </header>

@@ -1,6 +1,7 @@
 import React, { type ChangeEvent } from 'react';
 import './ModelSelector.css';
 import type { ModelInfo, WhisperModelName } from '../../../../types';
+import { useTranslation } from '../../../../i18n';
 
 export interface ModelSelectorProps {
   models: ModelInfo[];
@@ -19,19 +20,21 @@ function ModelSelector({
   onChange,
   ariaDescribedBy,
 }: ModelSelectorProps): React.JSX.Element {
+  const { t } = useTranslation();
+
   const handleChange = (e: ChangeEvent<HTMLSelectElement>): void => {
     onChange(e.target.value as WhisperModelName);
   };
 
   return (
     <div className="setting-group">
-      <label htmlFor="model-select">Model</label>
+      <label htmlFor="model-select">{t('model.label')}</label>
       <select
         id="model-select"
         value={selectedModel}
         onChange={handleChange}
         disabled={disabled || loading}
-        aria-label="Select Whisper model"
+        aria-label={t('model.ariaLabel')}
         aria-describedby={ariaDescribedBy}
       >
         {models.map((model) => (

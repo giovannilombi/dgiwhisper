@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { FileText } from 'lucide-react';
 import type { TranscriptSegment } from '../../utils/transcriptSegments';
+import { useTranslation } from '../../../../i18n';
 import './TranscriptionContent.css';
 
 export interface TranscriptionContentProps {
@@ -26,6 +27,7 @@ function TranscriptionContent({
   searchQuery = '',
   onSegmentClick,
 }: TranscriptionContentProps): React.JSX.Element {
+  const { t } = useTranslation();
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -97,10 +99,10 @@ function TranscriptionContent({
       className="output-content"
       ref={contentRef}
       role="region"
-      aria-label="Transcription output"
+      aria-label={t('transcript.region')}
     >
       {hasText && hasSegments ? (
-        <div className="transcript-segments" aria-label="Timestamped transcript">
+        <div className="transcript-segments" aria-label={t('transcript.timestampedRegion')}>
           {segments.map((segment) => (
             <div
               key={segment.id}
@@ -113,7 +115,7 @@ function TranscriptionContent({
                 type="button"
                 className="transcript-segment-timestamp"
                 onClick={() => onSegmentClick?.(segment)}
-                aria-label={`Play from ${segment.timestamp}`}
+                aria-label={t('transcript.playFrom', { timestamp: segment.timestamp })}
               >
                 {segment.timestamp.split('-->')[0]?.trim() || segment.timestamp}
               </button>
@@ -124,7 +126,7 @@ function TranscriptionContent({
           ))}
         </div>
       ) : hasText ? (
-        <pre className="transcription-text" aria-label="Transcribed text">
+        <pre className="transcription-text" aria-label={t('transcript.text')}>
           {highlightedText || text}
         </pre>
       ) : (
@@ -132,8 +134,8 @@ function TranscriptionContent({
           <span className="placeholder-icon">
             <FileText size={48} strokeWidth={1.5} aria-hidden="true" />
           </span>
-          <span>Transcription will appear here</span>
-          <span className="placeholder-hint">Select a file and click Transcribe to start</span>
+          <span>{t('transcript.empty.title')}</span>
+          <span className="placeholder-hint">{t('transcript.empty.subtitle')}</span>
         </div>
       )}
     </div>

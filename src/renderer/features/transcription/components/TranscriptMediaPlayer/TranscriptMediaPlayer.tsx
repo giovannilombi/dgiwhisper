@@ -3,6 +3,7 @@ import { AlertCircle, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '../../../../components/ui';
 import { getMediaSource } from '../../../../services/electronAPI';
 import type { MediaSourceResult, SelectedFile } from '../../../../types';
+import { useTranslation } from '../../../../i18n';
 import './TranscriptMediaPlayer.css';
 
 export interface TranscriptMediaPlayerProps {
@@ -44,6 +45,7 @@ function TranscriptMediaPlayer({
   onMediaElementChange,
   onPlaybackTimeChange,
 }: TranscriptMediaPlayerProps): React.JSX.Element | null {
+  const { t } = useTranslation();
   const mediaRef = useRef<HTMLMediaElement | null>(null);
   const latestPlaybackTimeRef = useRef(0);
   const playbackFrameRef = useRef<number | null>(null);
@@ -229,7 +231,7 @@ function TranscriptMediaPlayer({
   if (isResolvingSource) {
     return (
       <div className="transcript-media-player" role="status" aria-live="polite">
-        <span className="transcript-media-status">Loading media preview...</span>
+        <span className="transcript-media-status">{t('media.loading')}</span>
       </div>
     );
   }
@@ -238,7 +240,7 @@ function TranscriptMediaPlayer({
     return (
       <div className="transcript-media-player transcript-media-unavailable" role="status">
         <AlertCircle size={16} aria-hidden="true" />
-        <span>{source?.error || 'Media preview unavailable'}</span>
+        <span>{source?.error || t('media.unavailable')}</span>
       </div>
     );
   }
@@ -259,13 +261,13 @@ function TranscriptMediaPlayer({
         <video
           ref={setMediaElement}
           className="transcript-video-preview"
-          aria-label="Selected video preview"
+          aria-label={t('media.videoAria')}
           {...mediaProps}
         />
       )}
 
       {source.mediaType === 'audio' && (
-        <audio ref={setMediaElement} aria-label="Selected audio preview" {...mediaProps} />
+        <audio ref={setMediaElement} aria-label={t('media.audioAria')} {...mediaProps} />
       )}
 
       <div className="transcript-media-controls">
@@ -274,8 +276,8 @@ function TranscriptMediaPlayer({
           icon={isPlaying ? <Pause size={14} /> : <Play size={14} />}
           iconOnly
           onClick={handlePlayToggle}
-          title={isPlaying ? 'Pause preview' : 'Play preview'}
-          aria-label={isPlaying ? 'Pause preview' : 'Play preview'}
+          title={isPlaying ? t('media.pause') : t('media.play')}
+          aria-label={isPlaying ? t('media.pause') : t('media.play')}
         />
         <span className="transcript-media-time">{formatPlaybackTime(currentTime)}</span>
         <input
@@ -286,7 +288,7 @@ function TranscriptMediaPlayer({
           step="0.1"
           value={Math.min(currentTime, safeDuration)}
           onChange={handleSeek}
-          aria-label="Seek media preview"
+          aria-label={t('media.seekAria')}
           disabled={safeDuration === 0}
         />
         <span className="transcript-media-time">{formatPlaybackTime(safeDuration)}</span>
@@ -297,8 +299,8 @@ function TranscriptMediaPlayer({
             icon={isMuted || volume === 0 ? <VolumeX size={14} /> : <Volume2 size={14} />}
             iconOnly
             onClick={handleMuteToggle}
-            title={isMuted || volume === 0 ? 'Unmute preview' : 'Mute preview'}
-            aria-label={isMuted || volume === 0 ? 'Unmute preview' : 'Mute preview'}
+            title={isMuted || volume === 0 ? t('media.unmute') : t('media.mute')}
+            aria-label={isMuted || volume === 0 ? t('media.unmute') : t('media.mute')}
           />
           <input
             className="transcript-media-volume-slider"
@@ -308,15 +310,15 @@ function TranscriptMediaPlayer({
             step="0.05"
             value={isMuted ? 0 : volume}
             onChange={handleVolumeChange}
-            aria-label="Volume"
+            aria-label={t('media.volumeAria')}
           />
         </div>
         <select
           className="transcript-media-speed"
           value={playbackRate}
           onChange={handlePlaybackRateChange}
-          aria-label="Playback speed"
-          title="Playback speed"
+          aria-label={t('media.speedAria')}
+          title={t('media.speedTitle')}
         >
           {PLAYBACK_SPEEDS.map((speed) => (
             <option key={speed} value={speed}>

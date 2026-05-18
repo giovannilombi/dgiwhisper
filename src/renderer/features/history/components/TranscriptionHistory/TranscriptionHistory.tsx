@@ -10,6 +10,7 @@ import { History, Trash2, X, Inbox, Clock, Search } from 'lucide-react';
 import { Button } from '../../../../components/ui';
 import { formatDate, formatDuration } from '../../../../utils';
 import { getLanguageLabel } from '../../../../config';
+import { useTranslation } from '../../../../i18n';
 import './TranscriptionHistory.css';
 
 import type { HistoryItem } from '../../../../types';
@@ -29,6 +30,7 @@ function TranscriptionHistory({
   onSelect,
   onDelete,
 }: TranscriptionHistoryProps): React.JSX.Element {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,13 +85,13 @@ function TranscriptionHistory({
 
   const handleDelete = (event: React.MouseEvent, itemId: string, fileName: string): void => {
     event.stopPropagation();
-    if (window.confirm(`Are you sure you want to delete the transcription for "${fileName}"?`)) {
+    if (window.confirm(t('history.deleteConfirm', { name: fileName }))) {
       onDelete(itemId);
     }
   };
 
   const handleClearAll = (): void => {
-    if (window.confirm('Are you sure you want to clear all transcription history?')) {
+    if (window.confirm(t('history.clearConfirm'))) {
       onClear();
     }
   };
@@ -98,7 +100,7 @@ function TranscriptionHistory({
     <div className="history-container">
       <div className="history-header">
         <h3>
-          <History size={20} aria-hidden="true" /> Transcription History
+          <History size={20} aria-hidden="true" /> {t('history.title')}
         </h3>
         <div className="history-actions">
           {history.length > 0 && (
@@ -108,11 +110,11 @@ function TranscriptionHistory({
               onClick={handleClearAll}
               className="danger"
             >
-              Clear All
+              {t('history.clear')}
             </Button>
           )}
           <Button variant="icon" icon={<X size={16} />} onClick={onClose}>
-            Close
+            {t('history.close')}
           </Button>
         </div>
       </div>
@@ -123,8 +125,8 @@ function TranscriptionHistory({
             <span className="empty-icon">
               <Inbox size={48} aria-hidden="true" />
             </span>
-            <span>No transcriptions yet</span>
-            <span className="empty-hint">Your transcription history will appear here</span>
+            <span>{t('history.empty.title')}</span>
+            <span className="empty-hint">{t('history.empty.body')}</span>
           </div>
         ) : (
           <>
@@ -136,8 +138,8 @@ function TranscriptionHistory({
                 className="history-search-input"
                 value={searchQuery}
                 onChange={handleSearchChange}
-                placeholder="Search history (file name, transcript, model, language)"
-                aria-label="Search history"
+                placeholder={t('history.search.placeholder')}
+                aria-label={t('history.search.aria')}
               />
               {searchQuery && (
                 <Button
@@ -146,22 +148,27 @@ function TranscriptionHistory({
                   icon={<X size={14} />}
                   iconOnly
                   onClick={handleSearchClear}
-                  title="Clear history search"
-                  aria-label="Clear history search"
+                  title={t('history.search.clearTitle')}
+                  aria-label={t('history.search.clearAria')}
                 />
               )}
             </div>
 
             {trimmedQuery && (
               <div className="history-search-summary">
-                {filteredHistory.length} result{filteredHistory.length === 1 ? '' : 's'}
+                {t(
+                  filteredHistory.length === 1
+                    ? 'history.search.resultsOne'
+                    : 'history.search.resultsMany',
+                  { count: filteredHistory.length }
+                )}
               </div>
             )}
 
             {filteredHistory.length === 0 ? (
               <div className="history-empty history-empty-search">
-                <span>No matches found</span>
-                <span className="empty-hint">Try different keywords</span>
+                <span>{t('history.search.noMatches.title')}</span>
+                <span className="empty-hint">{t('history.search.noMatches.body')}</span>
               </div>
             ) : (
               <div className="history-list">
@@ -184,8 +191,8 @@ function TranscriptionHistory({
                           icon={<Trash2 size={14} />}
                           iconOnly
                           onClick={(event) => handleDelete(event, item.id, item.fileName)}
-                          title="Delete transcription"
-                          aria-label={`Delete ${item.fileName}`}
+                          title={t('history.delete')}
+                          aria-label={t('history.deleteAria', { name: item.fileName })}
                           className="history-item-delete"
                         />
                       </div>

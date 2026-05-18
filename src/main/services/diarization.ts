@@ -4,7 +4,11 @@ import { Worker } from 'worker_threads';
 import { app } from 'electron';
 import type { DiarizationOptions, DiarizationSegment } from '../../shared/types';
 
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+// Evaluated lazily — accessing app.isPackaged at module load time can fail
+// in the bundled main.cjs depending on import order with Electron's loader.
+function isDevEnv(): boolean {
+  return process.env.NODE_ENV === 'development' || !app.isPackaged;
+}
 
 interface ModelPaths {
   segmentation: string;
@@ -12,7 +16,7 @@ interface ModelPaths {
 }
 
 function getModelsBaseDir(): string {
-  if (isDev) {
+  if (isDevEnv()) {
     return path.join(process.cwd(), 'bin', 'diarization-models');
   }
   const unpacked = path.join(

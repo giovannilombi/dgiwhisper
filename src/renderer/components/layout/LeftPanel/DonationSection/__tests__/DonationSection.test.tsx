@@ -13,7 +13,7 @@ describe('DonationSection', () => {
   it('should render a help mailto link pointing to the support email', () => {
     render(<DonationSection />);
 
-    const helpLink = screen.getByRole('link', { name: /bisogno di aiuto\?/i });
+    const helpLink = screen.getByRole('link', { name: /need help\?/i });
     expect(helpLink).toBeInTheDocument();
     expect(helpLink).toHaveAttribute('href', 'mailto:giovanni.lombi@designgroupitalia.it');
   });

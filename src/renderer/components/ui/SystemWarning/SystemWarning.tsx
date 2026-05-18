@@ -4,6 +4,7 @@ import { Button } from '../Button';
 import './SystemWarning.css';
 import { useCopyToClipboard } from '../../../hooks/useCopyToClipboard';
 import { trackEvent, openExternal, getAppInfo, logger } from '../../../services';
+import { useTranslation } from '../../../i18n';
 
 const FFMPEG_DOWNLOAD_URL = 'https://ffmpeg.org/download.html';
 const VERIFICATION_RETRY_DELAY_MS = 1000;
@@ -13,6 +14,7 @@ export interface SystemWarningProps {
 }
 
 function SystemWarning({ onRefresh }: SystemWarningProps): React.JSX.Element {
+  const { t } = useTranslation();
   const { copyToClipboard, copySuccess } = useCopyToClipboard(2000);
   const [isChecking, setIsChecking] = useState(false);
   const [installCommand, setInstallCommand] = useState('brew install ffmpeg');
@@ -96,16 +98,13 @@ function SystemWarning({ onRefresh }: SystemWarningProps): React.JSX.Element {
           <AlertTriangle size={24} aria-hidden="true" />
         </div>
         <div className="system-warning-content">
-          <h3 className="system-warning-title">FFmpeg Installation Required</h3>
-          <p className="system-warning-description">
-            WhisperDesk relies on FFmpeg to process your media files. Without it, transcription will
-            not work.
-          </p>
+          <h3 className="system-warning-title">{t('warning.ffmpeg.title')}</h3>
+          <p className="system-warning-description">{t('warning.ffmpeg.body')}</p>
         </div>
       </div>
 
       <div className="system-warning-action-area">
-        <p className="instruction-text">Run this command in your terminal:</p>
+        <p className="instruction-text">{t('warning.ffmpeg.instruction')}</p>
         <div className="system-warning-code">
           <code>{installCommand}</code>
           <Button
@@ -114,18 +113,20 @@ function SystemWarning({ onRefresh }: SystemWarningProps): React.JSX.Element {
             icon={copySuccess ? <Check size={16} /> : <Copy size={16} />}
             iconOnly
             onClick={handleCopy}
-            title="Copy to clipboard"
-            aria-label={copySuccess ? 'Copied to clipboard' : 'Copy install command to clipboard'}
+            title={t('warning.ffmpeg.copyTitle')}
+            aria-label={
+              copySuccess ? t('warning.ffmpeg.copyAriaCopied') : t('warning.ffmpeg.copyAria')
+            }
           />
         </div>
 
         <div className="alternative-option">
-          <span>Or download manually from</span>
+          <span>{t('warning.ffmpeg.altPrefix')}</span>
           <Button
             variant="ghost"
             size="sm"
             onClick={handleDownloadLink}
-            aria-label="Open FFmpeg download page"
+            aria-label={t('warning.ffmpeg.openDownloadAria')}
             className="link"
           >
             ffmpeg.org
@@ -141,7 +142,7 @@ function SystemWarning({ onRefresh }: SystemWarningProps): React.JSX.Element {
         fullWidth
         className="warning"
       >
-        {isChecking ? 'Verifying Installation...' : 'I have installed FFmpeg'}
+        {isChecking ? t('warning.ffmpeg.retrying') : t('warning.ffmpeg.retry')}
       </Button>
     </div>
   );

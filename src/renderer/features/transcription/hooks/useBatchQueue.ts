@@ -16,6 +16,7 @@ import { logger } from '../../../services/logger';
 import { STORAGE_KEYS } from '../../../utils/storage';
 import { sanitizePath } from '../../../../shared/utils';
 import { toUserFriendlyTranscriptionError } from '../utils/errorMessages';
+import { useTranslation } from '../../../i18n';
 
 interface UseBatchQueueOptions {
   settings: TranscriptionSettings;
@@ -372,6 +373,7 @@ function showBatchCompletionNotification(items: QueueItem[]): void {
 
 export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueReturn {
   const { settings, onHistoryAdd, onFirstComplete } = options;
+  const { t } = useTranslation();
 
   const [queue, setQueue] = useState<QueueItem[]>(() => loadPersistedQueue());
   const [isProcessing, setIsProcessing] = useState(false);
@@ -632,7 +634,7 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
             ...item,
             startTime,
             status: 'error',
-            error: toUserFriendlyTranscriptionError(error),
+            error: toUserFriendlyTranscriptionError(error, t),
             endTime,
           };
         }
@@ -704,7 +706,7 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
           ...item,
           startTime,
           status: 'error',
-          error: toUserFriendlyTranscriptionError(error),
+          error: toUserFriendlyTranscriptionError(error, t),
           endTime: Date.now(),
         };
       } finally {

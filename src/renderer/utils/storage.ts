@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   THEME: 'whisperdesk_theme',
   LAST_MODEL: 'whisperdesk_lastModel',
   QUEUE: 'whisperdesk_queue',
+  LANGUAGE: 'whisperdesk_language',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

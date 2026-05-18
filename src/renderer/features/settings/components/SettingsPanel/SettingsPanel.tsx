@@ -24,6 +24,7 @@ import { ModelSelector } from '../ModelSelector';
 import { ModelDetails } from '../ModelDetails';
 import { LanguageSelector } from '../LanguageSelector';
 import { DiarizationToggle } from '../DiarizationToggle';
+import { useTranslation } from '../../../../i18n';
 
 export interface SettingsPanelProps {
   settings: TranscriptionSettings;
@@ -38,6 +39,7 @@ function SettingsPanel({
   disabled,
   onModelStatusChange,
 }: SettingsPanelProps): React.JSX.Element {
+  const { t } = useTranslation();
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [gpuInfo, setGpuInfo] = useState<GpuInfo | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -122,21 +124,30 @@ function SettingsPanel({
   };
 
   const handleDeleteModel = async (modelName: string): Promise<void> => {
-    if (!window.confirm(`Are you sure you want to delete the ${modelName} model?`)) {
+    if (!window.confirm(t('model.details.confirmDelete', { name: modelName }))) {
       return;
     }
     try {
       setLoading(true);
       const result = await deleteModel(modelName);
       if (!result?.success) {
-        window.alert(`Failed to delete model: ${result?.error || 'Unknown error'}`);
+        window.alert(
+          t('model.details.deleteFailed', {
+            error: result?.error || t('model.details.deleteUnknownError'),
+          })
+        );
         return;
       }
       await loadModelInfo();
     } catch (err) {
       logger.error('Failed to delete model:', err);
       window.alert(
-        `Failed to delete model: ${err && typeof err === 'object' && 'message' in err ? err.message : String(err)}`
+        t('model.details.deleteFailed', {
+          error:
+            err && typeof err === 'object' && 'message' in err
+              ? String((err as { message: unknown }).message)
+              : String(err),
+        })
       );
     } finally {
       setLoading(false);
@@ -147,7 +158,7 @@ function SettingsPanel({
 
   return (
     <div className={`settings-panel ${disabled ? 'disabled' : ''}`}>
-      <h3>Settings</h3>
+      <h3>{t('settings.title')}</h3>
 
       <GpuStatus gpuInfo={gpuInfo} />
 

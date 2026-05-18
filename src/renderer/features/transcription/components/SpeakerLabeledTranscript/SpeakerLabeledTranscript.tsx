@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { Users, Scissors, Merge, Pencil, Check, X, ChevronDown } from 'lucide-react';
 import { Button } from '../../../../components/ui';
 import type { TranscribedSegment } from '../../../../types';
+import { useTranslation } from '../../../../i18n';
 import './SpeakerLabeledTranscript.css';
 
 export interface SpeakerLabeledTranscriptProps {
@@ -52,10 +53,6 @@ function formatTime(seconds: number): string {
   return `${m}:${s}`;
 }
 
-function defaultLabelFor(speakerId: number): string {
-  return `Speaker ${speakerId + 1}`;
-}
-
 function SpeakerLabeledTranscript({
   segments,
   speakerCount,
@@ -63,6 +60,11 @@ function SpeakerLabeledTranscript({
   onLabelsChange,
   onSegmentsChange,
 }: SpeakerLabeledTranscriptProps): React.JSX.Element {
+  const { t } = useTranslation();
+  const defaultLabelFor = useCallback(
+    (speakerId: number) => t('diarization.transcript.speakerDefault', { n: speakerId + 1 }),
+    [t]
+  );
   const [workingSegments, setWorkingSegments] = useState<TranscribedSegment[]>(segments);
   const [labels, setLabels] = useState<Record<number, string>>(initialLabels ?? {});
   const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null);
@@ -104,7 +106,7 @@ function SpeakerLabeledTranscript({
 
   const labelFor = useCallback(
     (speakerId: number): string => labels[speakerId] ?? defaultLabelFor(speakerId),
-    [labels]
+    [labels, defaultLabelFor]
   );
 
   const startRename = (speakerId: number) => {
@@ -165,12 +167,24 @@ function SpeakerLabeledTranscript({
   };
 
   return (
-    <div className="speaker-transcript" role="region" aria-label="Diarized transcript">
+    <div
+      className="speaker-transcript"
+      role="region"
+      aria-label={t('diarization.transcript.region')}
+    >
       <div className="speaker-transcript-banner">
         <Users size={14} aria-hidden="true" />
         <span>
-          {speakerIds.length} speaker{speakerIds.length === 1 ? '' : 's'} detected
-          {speakerCount !== speakerIds.length ? ` (originally ${speakerCount})` : ''}.
+          {t(
+            speakerIds.length === 1
+              ? 'diarization.transcript.banner.one'
+              : 'diarization.transcript.banner.many',
+            { count: speakerIds.length }
+          )}
+          {speakerCount !== speakerIds.length
+            ? t('diarization.transcript.banner.originally', { original: speakerCount })
+            : ''}
+          .
         </span>
       </div>
 
@@ -195,7 +209,7 @@ function SpeakerLabeledTranscript({
                           if (e.key === 'Enter') commitRename();
                           if (e.key === 'Escape') cancelRename();
                         }}
-                        aria-label="Speaker name"
+                        aria-label={t('diarization.transcript.speakerDefault', { n: '' })}
                         className="speaker-label-input"
                       />
                       <Button
@@ -203,16 +217,16 @@ function SpeakerLabeledTranscript({
                         iconOnly
                         icon={<Check size={14} />}
                         onClick={commitRename}
-                        title="Save"
-                        aria-label="Save speaker name"
+                        title={t('diarization.transcript.save')}
+                        aria-label={t('diarization.transcript.saveAria')}
                       />
                       <Button
                         variant="icon"
                         iconOnly
                         icon={<X size={14} />}
                         onClick={cancelRename}
-                        title="Cancel"
-                        aria-label="Cancel rename"
+                        title={t('diarization.transcript.cancel')}
+                        aria-label={t('diarization.transcript.cancelAria')}
                       />
                     </span>
                   ) : (
@@ -220,7 +234,7 @@ function SpeakerLabeledTranscript({
                       type="button"
                       className="speaker-label-button"
                       onClick={() => startRename(block.speaker)}
-                      title="Rename speaker"
+                      title={t('diarization.transcript.rename')}
                     >
                       <span className="speaker-label-name">{labelFor(block.speaker)}</span>
                       <Pencil size={12} aria-hidden="true" />
@@ -240,15 +254,17 @@ function SpeakerLabeledTranscript({
                         onClick={() => setOpenMergeFor(isMergeOpen ? null : blockIndex)}
                         aria-haspopup="menu"
                         aria-expanded={isMergeOpen}
-                        title="Merge this speaker into another"
+                        title={t('diarization.transcript.mergeTitle')}
                       >
-                        Merge
+                        {t('diarization.transcript.merge')}
                         <ChevronDown size={12} aria-hidden="true" />
                       </Button>
                       {isMergeOpen && (
                         <div className="speaker-merge-menu" role="menu">
                           <p className="speaker-merge-hint">
-                            Merge <strong>{labelFor(block.speaker)}</strong> into…
+                            {t('diarization.transcript.mergeHintPrefix')}{' '}
+                            <strong>{labelFor(block.speaker)}</strong>{' '}
+                            {t('diarization.transcript.mergeHintSuffix')}
                           </p>
                           {otherSpeakers.map((targetId) => (
                             <button
@@ -270,9 +286,9 @@ function SpeakerLabeledTranscript({
                     size="sm"
                     icon={<Scissors size={14} />}
                     onClick={() => splitBlock(blockIndex)}
-                    title="Mark this block as a different speaker"
+                    title={t('diarization.transcript.splitTitle')}
                   >
-                    Split
+                    {t('diarization.transcript.split')}
                   </Button>
                 </div>
               </header>

@@ -3,6 +3,7 @@ import { Files } from 'lucide-react';
 import { isValidMediaFile, selectAndProcessFiles } from '../../../../utils';
 import type { SelectedFile } from '../../../../types';
 import { getPathForFile, getFileInfo } from '../../../../services/electronAPI';
+import { useTranslation } from '../../../../i18n';
 import './FileDropZone.css';
 
 export interface FileDropZoneProps {
@@ -18,6 +19,7 @@ function FileDropZone({
   duplicateFilesSkipped = 0,
   disabled,
 }: FileDropZoneProps): React.JSX.Element {
+  const { t } = useTranslation();
   const handleClick = async (): Promise<void> => {
     if (disabled) return;
 
@@ -73,23 +75,29 @@ function FileDropZone({
       onDragOver={handleDragOver}
       role="button"
       tabIndex={disabled ? -1 : 0}
-      aria-label="Drop audio or video files here, or click to browse. Multiple files supported."
+      aria-label={t('drop.aria')}
       onKeyDown={handleKeyDown}
     >
       <div className="dropzone-content">
         <Files size={40} className="dropzone-icon-svg" />
-        <span className="dropzone-text">Drop audio/video files here</span>
-        <span className="dropzone-subtext">or click to browse (multiple files)</span>
+        <span className="dropzone-text">{t('drop.title')}</span>
+        <span className="dropzone-subtext">{t('drop.subtitle')}</span>
         <span className="dropzone-formats">
           MP3, WAV, M4A, FLAC, OGG, OPUS, OGA, AMR, MP4, MOV, AVI, MKV, WEBM
         </span>
         {queueCount > 0 && (
-          <span className="dropzone-queue-badge">{queueCount} files in queue</span>
+          <span className="dropzone-queue-badge">
+            {t(queueCount === 1 ? 'drop.queueBadge.one' : 'drop.queueBadge.many', {
+              count: queueCount,
+            })}
+          </span>
         )}
         {duplicateFilesSkipped > 0 && (
           <span className="dropzone-duplicate-badge" role="status" aria-live="polite">
-            Skipped {duplicateFilesSkipped} duplicate file
-            {duplicateFilesSkipped > 1 ? 's' : ''}
+            {t(
+              duplicateFilesSkipped === 1 ? 'drop.duplicateBadge.one' : 'drop.duplicateBadge.many',
+              { count: duplicateFilesSkipped }
+            )}
           </span>
         )}
       </div>

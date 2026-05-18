@@ -1,0 +1,32 @@
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+  -webkit-app-region: no-drag;
+}
+
+.language-switcher:hover {
+  background: var(--surface-hover, var(--surface));
+  border-color: var(--primary);
+}
+
+.language-switcher-flag {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+.language-switcher-code {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}

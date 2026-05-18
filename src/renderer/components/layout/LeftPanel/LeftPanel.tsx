@@ -7,6 +7,7 @@ import { TranscriptionActions } from './TranscriptionActions';
 import { ErrorMessage } from './ErrorMessage';
 import { DonationSection } from './DonationSection';
 import { Button, SystemWarning } from '../../ui';
+import { useTranslation } from '../../../i18n';
 
 function LeftPanel(): React.JSX.Element {
   const {
@@ -30,12 +31,13 @@ function LeftPanel(): React.JSX.Element {
   } = useAppTranscription();
 
   const { isFFmpegAvailable, isChecking, recheckStatus } = useFFmpegStatus();
+  const { t } = useTranslation();
 
   return (
     <div className="left-panel">
       {isChecking && isFFmpegAvailable === null && (
         <div className="system-check-loading" role="status" aria-live="polite">
-          Checking system requirements...
+          {t('system.checking')}
         </div>
       )}
       {isFFmpegAvailable === false && <SystemWarning onRefresh={recheckStatus} />}
@@ -50,15 +52,19 @@ function LeftPanel(): React.JSX.Element {
       {showQueueResumePrompt && restoredQueueItemsCount > 0 && (
         <div className="queue-resume-banner" role="status" aria-live="polite">
           <p className="queue-resume-banner-title">
-            Restored {restoredQueueItemsCount} queued file
-            {restoredQueueItemsCount === 1 ? '' : 's'} from your last session.
+            {t(
+              restoredQueueItemsCount === 1
+                ? 'queue.resumePrompt.restoredOne'
+                : 'queue.resumePrompt.restoredMany',
+              { count: restoredQueueItemsCount }
+            )}
           </p>
           <div className="queue-resume-banner-actions">
             <Button onClick={() => void resumePersistedQueue()} disabled={isTranscribing}>
-              Resume Queue
+              {t('queue.resumePrompt.resume')}
             </Button>
             <Button variant="ghost" onClick={dismissQueueResumePrompt} disabled={isTranscribing}>
-              Dismiss
+              {t('queue.resumePrompt.dismiss')}
             </Button>
           </div>
         </div>

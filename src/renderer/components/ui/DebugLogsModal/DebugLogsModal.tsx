@@ -2,6 +2,7 @@ import React, { useEffect, useCallback } from 'react';
 import { X, Terminal, Copy, Clipboard, Trash2 } from 'lucide-react';
 import { Button } from '../Button';
 import type { LogEntry } from '../../../services/logger';
+import { useTranslation } from '../../../i18n';
 import './DebugLogsModal.css';
 
 interface DebugLogsModalProps {
@@ -28,6 +29,7 @@ function DebugLogsModal({
   onCopyLogsWithSystemInfo,
   onClearLogs,
 }: DebugLogsModalProps): React.JSX.Element | null {
+  const { t } = useTranslation();
   const [copyState, setCopyState] = React.useState<'idle' | 'logs' | 'info'>('idle');
 
   const handleKeyDown = useCallback(
@@ -86,15 +88,19 @@ function DebugLogsModal({
         <div className="debug-logs-header">
           <h2 id="debug-logs-title">
             <Terminal size={18} aria-hidden="true" />
-            Debug Logs
-            <span className="log-count">({logs.length} entries)</span>
+            {t('debugLogs.title')}
+            <span className="log-count">
+              {t(logs.length === 1 ? 'debugLogs.entries.one' : 'debugLogs.entries.many', {
+                count: logs.length,
+              })}
+            </span>
           </h2>
           <Button
             variant="ghost"
             icon={<X size={20} />}
             iconOnly
             onClick={onClose}
-            aria-label="Close debug logs"
+            aria-label={t('debugLogs.close')}
             className="debug-logs-close"
           />
         </div>
@@ -103,8 +109,8 @@ function DebugLogsModal({
           {logs.length === 0 ? (
             <div className="debug-logs-empty">
               <Terminal size={48} aria-hidden="true" />
-              <p>No logs captured yet.</p>
-              <p>Logs will appear here as you use the application.</p>
+              <p>{t('debugLogs.empty.title')}</p>
+              <p>{t('debugLogs.empty.body')}</p>
             </div>
           ) : (
             logs.map((entry, index) => (
@@ -126,7 +132,7 @@ function DebugLogsModal({
             disabled={logs.length === 0}
             className={`btn-copy-logs ${copyState === 'logs' ? 'copied' : ''}`}
           >
-            {copyState === 'logs' ? 'Copied!' : 'Copy Logs'}
+            {copyState === 'logs' ? t('debugLogs.copied') : t('debugLogs.copy')}
           </Button>
           <Button
             variant="secondary"
@@ -135,7 +141,7 @@ function DebugLogsModal({
             disabled={logs.length === 0}
             className={`btn-copy-with-info ${copyState === 'info' ? 'copied' : ''}`}
           >
-            {copyState === 'info' ? 'Copied!' : 'Copy with System Info'}
+            {copyState === 'info' ? t('debugLogs.copied') : t('debugLogs.copyWithSystem')}
           </Button>
           <Button
             variant="secondary"
@@ -144,7 +150,7 @@ function DebugLogsModal({
             disabled={logs.length === 0}
             className="btn-clear-logs danger"
           >
-            Clear
+            {t('debugLogs.clear')}
           </Button>
         </div>
       </div>

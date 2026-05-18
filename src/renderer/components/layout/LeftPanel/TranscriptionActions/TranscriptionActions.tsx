@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Zap } from 'lucide-react';
 import { Button } from '../../../../components/ui';
 import { useAppTranscription } from '../../../../contexts';
+import { useTranslation } from '../../../../i18n';
 
 export interface TranscriptionActionsProps {
   isFFmpegAvailable: boolean | null;
@@ -10,6 +11,7 @@ export interface TranscriptionActionsProps {
 function TranscriptionActions({ isFFmpegAvailable }: TranscriptionActionsProps): React.JSX.Element {
   const { isTranscribing, modelDownloaded, handleTranscribe, handleCancel, queue } =
     useAppTranscription();
+  const { t } = useTranslation();
 
   const { retryableCount } = useMemo(() => {
     let retryable = 0;
@@ -26,9 +28,9 @@ function TranscriptionActions({ isFFmpegAvailable }: TranscriptionActionsProps):
   const canTranscribe = retryableCount > 0 && modelDownloaded && isFFmpegAvailable === true;
 
   const getDisabledReason = (): string => {
-    if (!isFFmpegAvailable) return 'Please install FFmpeg first';
-    if (!modelDownloaded) return 'Please download the selected model first';
-    if (retryableCount === 0) return 'Add files to queue to transcribe';
+    if (!isFFmpegAvailable) return t('queue.disabled.ffmpeg');
+    if (!modelDownloaded) return t('queue.disabled.model');
+    if (retryableCount === 0) return t('queue.disabled.empty');
     return '';
   };
 
@@ -41,21 +43,21 @@ function TranscriptionActions({ isFFmpegAvailable }: TranscriptionActionsProps):
           icon={<Zap size={18} />}
           onClick={handleTranscribe}
           disabled={!canTranscribe}
-          aria-label="Start transcription"
+          aria-label={t('queue.startAria')}
           title={getDisabledReason()}
           fullWidth
         >
-          Transcribe
+          {t('queue.transcribe')}
         </Button>
       ) : (
         <Button
           variant="danger"
           size="lg"
           onClick={handleCancel}
-          aria-label="Cancel ongoing transcription"
+          aria-label={t('queue.cancelAria')}
           fullWidth
         >
-          Cancel
+          {t('queue.cancel')}
         </Button>
       )}
     </div>

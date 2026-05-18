@@ -4,6 +4,7 @@ import { Button } from '../../../../components/ui';
 import './ModelDetails.css';
 import type { ModelInfo, ModelDownloadProgress } from '../../../../types';
 import { QUALITY_STARS } from '../../../../config';
+import { useTranslation } from '../../../../i18n';
 
 export interface ModelDetailsProps {
   model: ModelInfo | undefined;
@@ -22,6 +23,7 @@ function ModelDetails({
   onDownload,
   onDelete,
 }: ModelDetailsProps): React.JSX.Element | null {
+  const { t } = useTranslation();
   if (!model) return null;
 
   const trimmedRemainingTime = downloadProgress?.remainingTime?.trim() ?? '';
@@ -30,11 +32,11 @@ function ModelDetails({
     <div className="model-details" id="model-details" role="status" aria-live="polite">
       <div className="model-info-row">
         <span className="model-stat">
-          <span className="stat-label">Speed:</span>
+          <span className="stat-label">{t('model.details.speed')}</span>
           <span className="stat-value">{model.speed}</span>
         </span>
         <span className="model-stat">
-          <span className="stat-label">Quality:</span>
+          <span className="stat-label">{t('model.details.quality')}</span>
           <span className="stat-value quality">{QUALITY_STARS[model.quality - 1]}</span>
         </span>
       </div>
@@ -44,12 +46,13 @@ function ModelDetails({
           {downloading === model.name ? (
             <div className="download-progress">
               <span className="downloading">
-                <span className="spinner"></span> Downloading...
+                <span className="spinner"></span> {t('model.details.downloadingShort')}
               </span>
               {downloadProgress && downloadProgress.percent !== undefined && (
                 <span className="progress-text">
                   {downloadProgress.percent}%
-                  {trimmedRemainingTime && ` (${trimmedRemainingTime} left)`}
+                  {trimmedRemainingTime &&
+                    ` ${t('model.details.timeRemaining', { time: trimmedRemainingTime })}`}
                 </span>
               )}
             </div>
@@ -59,11 +62,14 @@ function ModelDetails({
               icon={<Download size={14} />}
               onClick={() => onDownload(model.name)}
               disabled={disabled}
-              aria-label={`Download ${model.name} model, size ${model.size}`}
+              aria-label={t('model.details.downloadAria', {
+                name: model.name,
+                size: model.size,
+              })}
               fullWidth
               className="accent"
             >
-              Download {model.size}
+              {t('model.details.downloadButton', { size: model.size })}
             </Button>
           )}
         </div>
@@ -72,7 +78,7 @@ function ModelDetails({
       {model.downloaded && (
         <div className="model-ready-container">
           <div className="model-ready">
-            <Check size={14} aria-hidden="true" /> Ready to use
+            <Check size={14} aria-hidden="true" /> {t('model.details.ready')}
           </div>
           <Button
             variant="ghost"
@@ -81,8 +87,8 @@ function ModelDetails({
             iconOnly
             onClick={() => onDelete(model.name)}
             disabled={disabled}
-            title="Delete model"
-            aria-label={`Delete ${model.name} model`}
+            title={t('model.details.deleteTitle')}
+            aria-label={t('model.details.deleteAria', { name: model.name })}
             className="danger"
           />
         </div>

@@ -4,6 +4,7 @@ import { Button } from '../../../../components/ui';
 import './TranscriptionToolbar.css';
 import type { OutputFormat } from '../../../../types';
 import { OUTPUT_FORMATS } from '../../../../config';
+import { useTranslation } from '../../../../i18n';
 
 export interface TranscriptionToolbarProps {
   hasText: boolean;
@@ -32,6 +33,7 @@ function TranscriptionToolbar({
   isMediaPlayerEnabled = true,
   onToggleMediaPlayer,
 }: TranscriptionToolbarProps): React.JSX.Element {
+  const { t } = useTranslation();
   const [showSaveMenu, setShowSaveMenu] = useState<boolean>(false);
   const saveMenuRef = useRef<HTMLDivElement>(null);
 
@@ -55,25 +57,25 @@ function TranscriptionToolbar({
 
   return (
     <div className="output-header">
-      <h3>Transcription</h3>
+      <h3>{t('toolbar.transcription')}</h3>
       <div className="output-meta">
         {hasText && (
           <span className="word-count">
-            {wordCount} words · {charCount} chars
+            {t('toolbar.wordChar', { words: wordCount, chars: charCount })}
           </span>
         )}
       </div>
       {hasText && (
         <div className="output-actions">
           {showMediaToggle && (
-            <label className="media-toggle" title="Toggle media player and transcript segments">
-              <span className="media-toggle-label">Media Player</span>
+            <label className="media-toggle" title={t('toolbar.mediaToggleTitle')}>
+              <span className="media-toggle-label">{t('toolbar.mediaPlayer')}</span>
               <input
                 type="checkbox"
                 role="switch"
                 checked={isMediaPlayerEnabled}
                 onChange={(event) => onToggleMediaPlayer?.(event.currentTarget.checked)}
-                aria-label="Media player"
+                aria-label={t('toolbar.mediaToggleAria')}
               />
               <span className="media-toggle-track" aria-hidden="true">
                 <span className="media-toggle-thumb" />
@@ -84,32 +86,32 @@ function TranscriptionToolbar({
             variant="icon"
             icon={<Search size={14} />}
             onClick={onToggleSearch}
-            title="Search transcript (⌘F)"
-            aria-label="Search transcript"
+            title={t('toolbar.searchTitle')}
+            aria-label={t('toolbar.searchAria')}
             active={isSearchActive}
           >
-            Search
+            {t('toolbar.search')}
           </Button>
           <Button
             variant="icon"
             icon={copySuccess ? <Check size={14} /> : <Copy size={14} />}
             onClick={onCopy}
-            title="Copy to clipboard"
-            aria-label="Copy transcription to clipboard"
+            title={t('toolbar.copyTitle')}
+            aria-label={t('toolbar.copyAria')}
             className={copySuccess ? 'copied' : ''}
           >
-            {copySuccess ? 'Copied!' : 'Copy'}
+            {copySuccess ? t('toolbar.copy.success') : t('toolbar.copy')}
           </Button>
           <div className="save-dropdown" ref={saveMenuRef}>
             <Button
               variant="icon"
               icon={<Save size={14} />}
               onClick={() => setShowSaveMenu(!showSaveMenu)}
-              title="Save to file"
-              aria-label="Save transcription to file"
+              title={t('toolbar.saveTitle')}
+              aria-label={t('toolbar.saveAria')}
               aria-expanded={showSaveMenu}
             >
-              Save
+              {t('toolbar.save')}
             </Button>
             {showSaveMenu && (
               <div className="save-menu">

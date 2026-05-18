@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, type ChangeEvent } from 'react';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import { Button } from '../../../../components/ui';
+import { useTranslation } from '../../../../i18n';
 import './TranscriptionSearch.css';
 
 export interface TranscriptionSearchProps {
@@ -22,6 +23,7 @@ function TranscriptionSearch({
   onNextMatch,
   onClose,
 }: TranscriptionSearchProps): React.JSX.Element {
+  const { t } = useTranslation();
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -40,15 +42,17 @@ function TranscriptionSearch({
         ref={searchInputRef}
         type="text"
         className="search-input"
-        placeholder="Search transcript..."
+        placeholder={t('search.placeholder')}
         value={searchQuery}
         onChange={handleSearchChange}
-        aria-label="Search transcript"
+        aria-label={t('search.inputAria')}
       />
       <div className="search-nav">
         {searchQuery && (
           <span className="search-count">
-            {totalMatches > 0 ? `${currentMatchIndex + 1} of ${totalMatches}` : 'No matches'}
+            {totalMatches > 0
+              ? t('search.matchCount', { current: currentMatchIndex + 1, total: totalMatches })
+              : t('search.noMatches')}
           </span>
         )}
         <Button
@@ -58,8 +62,8 @@ function TranscriptionSearch({
           iconOnly
           onClick={onPrevMatch}
           disabled={totalMatches === 0}
-          title="Previous match (Shift+Enter)"
-          aria-label="Previous match"
+          title={t('search.prevTitle')}
+          aria-label={t('search.prev')}
         />
         <Button
           variant="ghost"
@@ -68,8 +72,8 @@ function TranscriptionSearch({
           iconOnly
           onClick={onNextMatch}
           disabled={totalMatches === 0}
-          title="Next match (Enter)"
-          aria-label="Next match"
+          title={t('search.nextTitle')}
+          aria-label={t('search.next')}
         />
         <Button
           variant="ghost"
@@ -77,8 +81,8 @@ function TranscriptionSearch({
           icon={<X size={14} />}
           iconOnly
           onClick={onClose}
-          title="Close search (Esc)"
-          aria-label="Close search"
+          title={t('search.closeTitle')}
+          aria-label={t('search.close')}
         />
       </div>
     </div>

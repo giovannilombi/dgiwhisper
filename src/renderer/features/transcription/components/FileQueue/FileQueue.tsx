@@ -4,6 +4,7 @@ import { Button } from '../../../../components/ui';
 import { formatFileSize } from '../../../../utils';
 import type { QueueItem, QueueItemStatus } from '../../../../types';
 import { toUserFriendlyTranscriptionError } from '../../utils/errorMessages';
+import { useTranslation } from '../../../../i18n';
 import './FileQueue.css';
 
 export interface FileQueueProps {
@@ -63,6 +64,7 @@ function FileQueue({
   estimatedTimeRemainingSec = null,
   disabled = false,
 }: FileQueueProps): React.JSX.Element | null {
+  const { t } = useTranslation();
   const [removeErrorToastMessage, setRemoveErrorToastMessage] = useState<string | null>(null);
   const removeErrorToastTimeoutRef = useRef<number | null>(null);
 
@@ -120,8 +122,8 @@ function FileQueue({
     if (disabled || item.status === 'processing') return;
 
     if (item.status === 'error' && item.error) {
-      const friendlyError = toUserFriendlyTranscriptionError(item.error);
-      showRemoveErrorToast(`Removed failed item: ${friendlyError}`);
+      const friendlyError = toUserFriendlyTranscriptionError(item.error, t);
+      showRemoveErrorToast(t('queue.item.removedFailed', { error: friendlyError }));
     }
 
     onRemove(item.id);
@@ -130,7 +132,7 @@ function FileQueue({
   return (
     <div className="file-queue">
       <div className="file-queue-header">
-        <span className="file-queue-title">FILES ({queue.length})</span>
+        <span className="file-queue-title">{t('queue.header.title', { count: queue.length })}</span>
         <div className="file-queue-header-actions">
           {hasRetryItems && (
             <Button
@@ -139,9 +141,9 @@ function FileQueue({
               icon={<RotateCcw size={14} />}
               onClick={onRetryFailed}
               disabled={disabled}
-              title="Retry failed and cancelled items"
+              title={t('queue.header.retryTitle')}
             >
-              Retry Failed
+              {t('queue.header.retryLabel')}
             </Button>
           )}
           {hasCompletedItems && (
@@ -151,9 +153,9 @@ function FileQueue({
               icon={<Trash2 size={14} />}
               onClick={onClearCompleted}
               disabled={disabled}
-              title="Clear completed"
+              title={t('queue.header.clearTitle')}
             >
-              Clear
+              {t('queue.header.clearLabel')}
             </Button>
           )}
         </div>
@@ -167,7 +169,7 @@ function FileQueue({
             onClick={() => handleItemClick(item.id)}
             role="button"
             tabIndex={0}
-            aria-label={`Select ${item.file.name} to view transcription`}
+            aria-label={t('queue.item.selectAria', { name: item.file.name })}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 handleItemClick(item.id);
@@ -188,9 +190,9 @@ function FileQueue({
               {item.status === 'error' && item.error && (
                 <span
                   className="file-queue-item-error"
-                  title={toUserFriendlyTranscriptionError(item.error)}
+                  title={toUserFriendlyTranscriptionError(item.error, t)}
                 >
-                  {toUserFriendlyTranscriptionError(item.error)}
+                  {toUserFriendlyTranscriptionError(item.error, t)}
                 </span>
               )}
             </div>
@@ -209,8 +211,8 @@ function FileQueue({
               iconOnly
               onClick={(e) => handleRemoveClick(e, item)}
               disabled={disabled || item.status === 'processing'}
-              title="Remove from queue"
-              aria-label={`Remove ${item.file.name} from queue`}
+              title={t('queue.item.removeTitle')}
+              aria-label={t('queue.item.removeAria', { name: item.file.name })}
               className="file-queue-item-remove"
             />
           </div>
@@ -224,20 +226,26 @@ function FileQueue({
       )}
 
       <div className="file-queue-summary">
-        {completedCount > 0 && <span>{completedCount} completed</span>}
-        {processingCount > 0 && <span>{processingCount} processing</span>}
+        {completedCount > 0 && (
+          <span>{t('queue.summary.completed', { count: completedCount })}</span>
+        )}
+        {processingCount > 0 && (
+          <span>{t('queue.summary.processing', { count: processingCount })}</span>
+        )}
         {processingCount > 0 && (
           <span className="eta">
-            ETA{' '}
+            {t('queue.summary.etaPrefix')}{' '}
             {typeof estimatedTimeRemainingSec === 'number'
               ? formatEstimatedTime(estimatedTimeRemainingSec)
-              : 'calculating...'}
+              : t('queue.summary.etaCalculating')}
           </span>
         )}
-        {pendingCount > 0 && <span>{pendingCount} pending</span>}
-        {errorCount > 0 && <span className="error">{errorCount} failed</span>}
+        {pendingCount > 0 && <span>{t('queue.summary.pending', { count: pendingCount })}</span>}
+        {errorCount > 0 && (
+          <span className="error">{t('queue.summary.failed', { count: errorCount })}</span>
+        )}
         {completedCount > 0 && !processingCount && (
-          <span className="hint">Click a file to view its transcription</span>
+          <span className="hint">{t('queue.empty.hint')}</span>
         )}
       </div>
     </div>

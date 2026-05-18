@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Info, Users, X } from 'lucide-react';
 import { Button } from '../../../../components/ui';
+import { useTranslation } from '../../../../i18n';
 import './DiarizationToggle.css';
 
 export interface DiarizationToggleProps {
@@ -10,6 +11,7 @@ export interface DiarizationToggleProps {
 }
 
 function DiarizationInfoModal({ onClose }: { onClose: () => void }): React.JSX.Element {
+  const { t } = useTranslation();
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -24,6 +26,12 @@ function DiarizationInfoModal({ onClose }: { onClose: () => void }): React.JSX.E
 
   const stopPropagation = (e: React.MouseEvent) => e.stopPropagation();
 
+  // The intro sentence is built from a template that contains the
+  // emphasized phrase verbatim — we split on it so we can render an <em>.
+  const intro = t('diarization.info.intro');
+  const emphasized = t('diarization.info.intro.emphasized');
+  const introParts = intro.split(emphasized);
+
   return (
     <div className="diarization-info-overlay" onClick={onClose}>
       <div
@@ -36,52 +44,47 @@ function DiarizationInfoModal({ onClose }: { onClose: () => void }): React.JSX.E
         <div className="diarization-info-header">
           <h2 id="diarization-info-title">
             <Users size={18} aria-hidden="true" />
-            About speaker diarization
+            {t('diarization.info.title')}
           </h2>
           <Button
             variant="ghost"
             icon={<X size={20} />}
             iconOnly
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t('diarization.info.close')}
             className="diarization-info-close"
           />
         </div>
 
         <div className="diarization-info-content">
           <p>
-            Speaker diarization tries to figure out <em>who spoke when</em> by clustering voice
-            characteristics across the audio. It runs locally, after the transcription, and attaches
-            a speaker label to each segment.
+            {introParts[0]}
+            <em>{emphasized}</em>
+            {introParts.slice(1).join(emphasized)}
           </p>
 
-          <h3>What to expect</h3>
+          <h3>{t('diarization.info.expect.heading')}</h3>
           <ul>
             <li>
-              <strong>The number of speakers is a guess.</strong> Without ground-truth labels, the
-              algorithm decides clusters from voice similarity, and may merge two similar voices or
-              split one speaker into two.
+              <strong>{t('diarization.info.expect.count.title')}</strong>{' '}
+              {t('diarization.info.expect.count.body')}
             </li>
             <li>
-              <strong>Overlapping speech is hard.</strong> When two people talk at the same time,
-              one speaker may dominate the segment and the other is hidden.
+              <strong>{t('diarization.info.expect.overlap.title')}</strong>{' '}
+              {t('diarization.info.expect.overlap.body')}
             </li>
             <li>
-              <strong>Short turns can be misassigned.</strong> A one-word interjection may inherit
-              the surrounding speaker.
+              <strong>{t('diarization.info.expect.short.title')}</strong>{' '}
+              {t('diarization.info.expect.short.body')}
             </li>
             <li>
-              <strong>Background noise hurts accuracy.</strong> Music, reverb, or low
-              signal-to-noise degrade clustering quality.
+              <strong>{t('diarization.info.expect.noise.title')}</strong>{' '}
+              {t('diarization.info.expect.noise.body')}
             </li>
           </ul>
 
-          <h3>You stay in control</h3>
-          <p>
-            After diarization runs you can rename each speaker, merge two clusters that are the same
-            person, or mark a block as a different speaker. The transcript text is never altered —
-            only the speaker labels change.
-          </p>
+          <h3>{t('diarization.info.control.heading')}</h3>
+          <p>{t('diarization.info.control.body')}</p>
         </div>
       </div>
     </div>
@@ -93,6 +96,7 @@ function DiarizationToggle({
   disabled = false,
   onChange,
 }: DiarizationToggleProps): React.JSX.Element {
+  const { t } = useTranslation();
   const [showInfo, setShowInfo] = useState(false);
 
   return (
@@ -102,7 +106,7 @@ function DiarizationToggle({
           <span className="diarization-toggle-icon">
             <Users size={16} aria-hidden="true" />
           </span>
-          <span className="diarization-toggle-text">Speaker diarization</span>
+          <span className="diarization-toggle-text">{t('diarization.toggle')}</span>
           <span className="diarization-toggle-switch">
             <input
               type="checkbox"
@@ -110,7 +114,7 @@ function DiarizationToggle({
               checked={enabled}
               disabled={disabled}
               onChange={(e) => onChange(e.target.checked)}
-              aria-label="Enable speaker diarization"
+              aria-label={t('diarization.toggle.enableAria')}
             />
             <span className="diarization-toggle-track" aria-hidden="true" />
           </span>
@@ -120,8 +124,8 @@ function DiarizationToggle({
           iconOnly
           icon={<Info size={16} />}
           onClick={() => setShowInfo(true)}
-          title="About speaker diarization"
-          aria-label="About speaker diarization"
+          title={t('diarization.info.button')}
+          aria-label={t('diarization.info.button')}
           className="diarization-info-button"
         />
       </div>
