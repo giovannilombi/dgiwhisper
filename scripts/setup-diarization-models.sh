@@ -65,3 +65,19 @@ if [ ! -f "$SHERPA_X64_DIR/sherpa-onnx.node" ]; then
 else
     echo "✅ sherpa-onnx-darwin-x64 already present, skipping."
 fi
+
+# 4) Cross-arch ffmpeg binary so the macOS DMG can ship ffmpeg for both
+#    Apple Silicon and Intel without requiring the user to brew install it.
+FFMPEG_X64_DIR="$PROJECT_DIR/node_modules/@ffmpeg-installer/darwin-x64"
+if [ ! -f "$FFMPEG_X64_DIR/ffmpeg" ]; then
+    echo ""
+    echo "⬇️  Force-installing @ffmpeg-installer/darwin-x64 for universal build..."
+    (cd "$PROJECT_DIR" && npm install --no-save --force --no-audit --no-fund @ffmpeg-installer/darwin-x64 >/dev/null 2>&1)
+    if [ ! -f "$FFMPEG_X64_DIR/ffmpeg" ]; then
+        echo "❌ Failed to install @ffmpeg-installer/darwin-x64"
+        exit 1
+    fi
+    echo "✅ @ffmpeg-installer/darwin-x64 ready."
+else
+    echo "✅ @ffmpeg-installer/darwin-x64 already present, skipping."
+fi

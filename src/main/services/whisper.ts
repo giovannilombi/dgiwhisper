@@ -333,15 +333,42 @@ export function deleteModel(modelName: string): { success: boolean; error?: stri
   }
 }
 
-const FFMPEG_PATHS = [
+// System-installed FFmpeg paths (preferred when present) and a bundled
+// fallback that ships with the app so the user is not forced to brew install.
+const SYSTEM_FFMPEG_PATHS = [
   '/opt/homebrew/bin/ffmpeg',
   '/usr/local/bin/ffmpeg',
   '/usr/bin/ffmpeg',
   'ffmpeg',
 ];
 
+function getBundledFfmpegPath(): string | null {
+  try {
+    // Lazy require so missing optional install at dev-time doesn't crash.
+    // The @ffmpeg-installer/ffmpeg package returns the absolute path of the
+    // platform-specific binary, which electron-builder unpacks via asarUnpack.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const installer = require('@ffmpeg-installer/ffmpeg') as { path?: string };
+    if (!installer?.path) return null;
+    // In production the path computed inside app.asar must be rewritten to
+    // app.asar.unpacked so the binary is actually executable on disk.
+    const unpacked = installer.path.replace(
+      `${path.sep}app.asar${path.sep}`,
+      `${path.sep}app.asar.unpacked${path.sep}`
+    );
+    return fs.existsSync(unpacked) ? unpacked : null;
+  } catch {
+    return null;
+  }
+}
+
+function getFfmpegPaths(): string[] {
+  const bundled = getBundledFfmpegPath();
+  return bundled ? [...SYSTEM_FFMPEG_PATHS, bundled] : SYSTEM_FFMPEG_PATHS;
+}
+
 export async function checkFFmpeg(): Promise<boolean> {
-  for (const p of FFMPEG_PATHS) {
+  for (const p of getFfmpegPaths()) {
     try {
       if (path.isAbsolute(p) && !fs.existsSync(p)) {
         continue;
@@ -380,7 +407,7 @@ export function checkGpuStatus(): GpuInfo {
 function convertToWav(inputPath: string, outputPath: string): Promise<string> {
   return new Promise((resolve, reject) => {
     let ffmpegPath = 'ffmpeg';
-    for (const p of FFMPEG_PATHS) {
+    for (const p of getFfmpegPaths()) {
       if (p === 'ffmpeg' || fs.existsSync(p)) {
         ffmpegPath = p;
         break;
