@@ -8,7 +8,7 @@ type Dict = Record<string, string>;
 
 export const en: Dict = {
   // App header / shell
-  'header.claim': 'Local only, privacy-first AI transcription',
+  'header.claim': 'Local only, privacy-first AI transcription and diarization',
   'header.history': 'History ({count})',
   'header.themeLight': 'Switch to light mode',
   'header.themeDark': 'Switch to dark mode',
@@ -16,11 +16,86 @@ export const en: Dict = {
   'header.openDebugLogs': 'Open debug logs',
   'header.language.switchTo': 'Switch language to Italian',
   'header.language.switchToEn': 'Switch language to English',
+  'header.help': 'How to use the app',
+  'header.openHelp': 'Open the in-app help',
+
+  // Help modal — usage walkthrough + Whisper models reference
+  'help.title': 'How to use DGI-Whisper',
+  'help.close': 'Close help',
+  'help.usage.heading': 'Usage',
+  'help.usage.step1.title': '1. Add files',
+  'help.usage.step1.b1':
+    'Drag audio or video files (single or batch) onto the drop zone, or click it to browse your Mac.',
+  'help.usage.step1.b2':
+    'Files queue up and are processed one after the other; you can keep adding while a batch is running.',
+  'help.usage.step1.b3': 'Duplicates (same path or audio fingerprint) are skipped automatically.',
+  'help.usage.step2.title': '2. Configure the transcription',
+  'help.usage.step2.diarization.title': 'Speaker diarization',
+  'help.usage.step2.diarization.body':
+    'Toggle the red/green switch at the top of the Settings panel to identify "who spoke when". The ⓘ icon next to it explains the limits of the algorithm (it guesses the number of speakers, struggles with overlapping speech, etc.).',
+  'help.usage.step2.model.title': 'Whisper model',
+  'help.usage.step2.model.body':
+    'Pick the model that matches the trade-off you want between speed and quality (see the table at the bottom of this help). The selected model is downloaded automatically on first use.',
+  'help.usage.step2.audioLang.title': 'Audio language',
+  'help.usage.step2.audioLang.body':
+    'Choose Auto to let Whisper detect the spoken language, or pick a specific language from the list.',
+  'help.usage.step2.uiLang.title': 'UI language',
+  'help.usage.step2.uiLang.body':
+    'Switch the interface between Italian and English with the flag in the header. The UI language is independent from the transcription language.',
+  'help.usage.step3.title': '3. Start the transcription',
+  'help.usage.step3.body':
+    'Click Transcribe (or press ⌘ Return) to process the queue. Cancel (or Esc) interrupts the current item — if diarization is in progress, the running worker is stopped too.',
+  'help.usage.step4.title': '4. Review the transcript',
+  'help.usage.step4.basic':
+    'With diarization OFF the transcript appears as a single block. Click any timestamp to jump to that moment in the inline media player; press ⌘ F to open the inline search bar.',
+  'help.usage.step4.diarized':
+    'With diarization ON the transcript is grouped by speaker block. You can refine the result with three controls on each block:',
+  'help.usage.step4.rename.title': 'Rename a speaker',
+  'help.usage.step4.rename.body':
+    'Click the speaker label (e.g. "Speaker 1") and type the real name (e.g. "Anna"). The new name applies to every block of that speaker across the whole transcript.',
+  'help.usage.step4.merge.title': 'Merge two speakers',
+  'help.usage.step4.merge.body':
+    'When the algorithm split the same person into two clusters, click Merge on a block and pick the target speaker from the dropdown. All blocks of the source speaker collapse into the chosen one.',
+  'help.usage.step4.split.title': 'Split a block',
+  'help.usage.step4.split.body':
+    'When the algorithm grouped two people into the same cluster, click Split on the wrongly attributed block to assign it a fresh new speaker that you can then rename.',
+  'help.usage.step4.persist':
+    'All edits (names, merges, splits) are saved into the transcription history, so re-opening a past transcription brings your refined labels back.',
+  'help.usage.step5.title': '5. Export',
+  'help.usage.step5.intro': 'Save from the toolbar (or press ⌘ S) and pick a format:',
+  'help.usage.step5.txtMd':
+    'TXT and Markdown include the speaker labels when diarization is on (using your renamed labels).',
+  'help.usage.step5.vttSrt':
+    'VTT and SRT are standard subtitle formats with timestamps. Speaker labels are not embedded in subtitles.',
+  'help.usage.step5.docxPdf': 'DOCX and PDF are formatted document exports.',
+  'help.usage.step5.copy': 'Alternatively, copy the plain transcription text with ⌘ C.',
+  'help.usage.step6.title': '6. History',
+  'help.usage.step6.body':
+    'Open the History panel from the header (or ⌘ H). Each entry stores the file name, model, language, duration, full text, and — when diarization was on — the speaker segments and your label / merge / split edits. Click any entry to reload it into the main view exactly as you left it.',
+
+  'help.models.heading': 'Whisper Models',
+  'help.models.intro':
+    'Choose the model that matches the trade-off you want between speed and quality. Larger models produce better transcripts but use more memory and take longer to run.',
+  'help.models.col.model': 'Model',
+  'help.models.col.size': 'Size',
+  'help.models.col.speed': 'Speed',
+  'help.models.col.quality': 'Quality',
+  'help.models.col.bestFor': 'Best for',
+  'help.models.bestFor.tiny': 'Quick drafts, testing',
+  'help.models.bestFor.base': 'Fast transcription',
+  'help.models.bestFor.small': 'Balanced speed/quality',
+  'help.models.bestFor.medium': 'High quality',
+  'help.models.bestFor.large': 'Best quality',
+  'help.models.bestFor.turbo': 'Fast + quality',
+  'help.models.englishOnly':
+    'English-only variants (.en) are available for tiny, base, small, and medium models — they are faster and a bit more accurate when the audio is English-only.',
+  'help.models.download':
+    'Models are downloaded automatically on first use and cached locally. Subsequent transcriptions with the same model are instant.',
 
   // Footer
   'footer.help': 'Need help?',
   'footer.signature': 'Design Group Italia – Team PM',
-  'footer.credits': 'Based on WhisperDesk · powered by whisper.cpp',
+  'footer.credits': 'Based on WhisperDesk · powered by whisper.cpp + sherpa-onnx',
 
   // Settings panel
   'settings.title': 'Settings',
@@ -304,7 +379,7 @@ export const en: Dict = {
 
 export const it: Dict = {
   // App header / shell
-  'header.claim': 'Trascrizione AI locale, privacy-first',
+  'header.claim': 'Trascrizione AI e diarizzazione locale, privacy-first',
   'header.history': 'Cronologia ({count})',
   'header.themeLight': 'Passa al tema chiaro',
   'header.themeDark': 'Passa al tema scuro',
@@ -312,11 +387,87 @@ export const it: Dict = {
   'header.openDebugLogs': 'Apri i log di debug',
   'header.language.switchTo': 'Passa alla lingua italiana',
   'header.language.switchToEn': 'Switch to English',
+  'header.help': "Come usare l'app",
+  'header.openHelp': 'Apri la guida in-app',
+
+  // Help modal — usage walkthrough + Whisper models reference
+  'help.title': 'Come usare DGI-Whisper',
+  'help.close': 'Chiudi guida',
+  'help.usage.heading': 'Come si usa',
+  'help.usage.step1.title': '1. Aggiungi file',
+  'help.usage.step1.b1':
+    'Trascina file audio o video (singoli o multipli) sulla drop zone, oppure cliccala per scegliere dal Mac.',
+  'help.usage.step1.b2':
+    "I file si mettono in coda e vengono trascritti uno dopo l'altro; puoi continuare ad aggiungerne mentre la coda è in elaborazione.",
+  'help.usage.step1.b3':
+    'I duplicati (stesso path o stessa impronta audio) vengono saltati automaticamente.',
+  'help.usage.step2.title': '2. Configura la trascrizione',
+  'help.usage.step2.diarization.title': 'Identifica chi parla (diarization)',
+  'help.usage.step2.diarization.body':
+    "Attiva l'interruttore rosso/verde in cima al pannello Impostazioni per identificare \"chi ha parlato e quando\". L'icona ⓘ a fianco spiega i limiti dell'algoritmo (stima il numero di speaker, può sbagliare con sovrapposizioni, ecc.).",
+  'help.usage.step2.model.title': 'Modello Whisper',
+  'help.usage.step2.model.body':
+    'Scegli il modello in base al compromesso che vuoi tra velocità e qualità (vedi la tabella in fondo a questa guida). Il modello selezionato viene scaricato automaticamente al primo uso.',
+  'help.usage.step2.audioLang.title': 'Lingua audio',
+  'help.usage.step2.audioLang.body':
+    'Imposta Auto per lasciare che Whisper rilevi la lingua parlata, oppure scegli una lingua specifica dalla lista.',
+  'help.usage.step2.uiLang.title': "Lingua dell'interfaccia",
+  'help.usage.step2.uiLang.body':
+    "Cambia la lingua dell'interfaccia tra italiano e inglese con la bandierina nell'header. La lingua dell'UI è indipendente dalla lingua audio della trascrizione.",
+  'help.usage.step3.title': '3. Avvia la trascrizione',
+  'help.usage.step3.body':
+    'Clicca Trascrivi (o premi ⌘ Invio) per processare la coda. Annulla (o Esc) interrompe il file corrente — se la diarizzazione è in corso viene terminata anche quella.',
+  'help.usage.step4.title': '4. Rivedi la trascrizione',
+  'help.usage.step4.basic':
+    'Con la diarizzazione OFF la trascrizione appare come un unico blocco. Clicca un timestamp per saltare a quel momento nel player inline; premi ⌘ F per aprire la barra di ricerca.',
+  'help.usage.step4.diarized':
+    'Con la diarizzazione ON la trascrizione è raggruppata in blocchi per speaker. Puoi raffinare il risultato con tre controlli su ogni blocco:',
+  'help.usage.step4.rename.title': 'Rinomina uno speaker',
+  'help.usage.step4.rename.body':
+    'Clicca l\'etichetta dello speaker (es. "Speaker 1") e scrivi il nome reale (es. "Anna"). Il nuovo nome viene applicato a tutti i blocchi di quello speaker in tutta la trascrizione.',
+  'help.usage.step4.merge.title': 'Unisci due speaker',
+  'help.usage.step4.merge.body':
+    "Se l'algoritmo ha diviso la stessa persona in due cluster, clicca Unisci su un blocco e scegli lo speaker target dal menu. Tutti i blocchi dello speaker di origine confluiscono in quello scelto.",
+  'help.usage.step4.split.title': 'Separa un blocco',
+  'help.usage.step4.split.body':
+    "Se l'algoritmo ha unito due persone nello stesso cluster, clicca Separa sul blocco mal attribuito per assegnargli uno speaker nuovo che puoi poi rinominare.",
+  'help.usage.step4.persist':
+    'Tutte le modifiche (nomi, unioni, separazioni) vengono salvate nella cronologia delle trascrizioni, quindi riaprendo una trascrizione passata ritrovi le tue etichette raffinate.',
+  'help.usage.step5.title': '5. Esporta',
+  'help.usage.step5.intro': 'Salva dalla toolbar (o premi ⌘ S) e scegli il formato:',
+  'help.usage.step5.txtMd':
+    'TXT e Markdown includono le etichette degli speaker quando la diarizzazione è attiva (usando i nomi che hai rinominato).',
+  'help.usage.step5.vttSrt':
+    'VTT e SRT sono formati sottotitoli standard con timestamp. Le etichette degli speaker non sono incluse nei sottotitoli.',
+  'help.usage.step5.docxPdf': 'DOCX e PDF sono export di documenti formattati.',
+  'help.usage.step5.copy': 'In alternativa, copia il testo semplice della trascrizione con ⌘ C.',
+  'help.usage.step6.title': '6. Cronologia',
+  'help.usage.step6.body':
+    "Apri il pannello Cronologia dall'header (o ⌘ H). Ogni voce salva nome file, modello, lingua, durata, testo completo e — se la diarizzazione era attiva — i segmenti per speaker e le tue modifiche di nome / unione / separazione. Clicca una voce per ricaricarla nella vista principale esattamente come l'avevi lasciata.",
+
+  'help.models.heading': 'Modelli Whisper',
+  'help.models.intro':
+    'Scegli il modello in base al compromesso che vuoi tra velocità e qualità. I modelli più grandi producono trascrizioni migliori ma usano più memoria e impiegano più tempo.',
+  'help.models.col.model': 'Modello',
+  'help.models.col.size': 'Dimensione',
+  'help.models.col.speed': 'Velocità',
+  'help.models.col.quality': 'Qualità',
+  'help.models.col.bestFor': 'Ideale per',
+  'help.models.bestFor.tiny': 'Bozze rapide, test',
+  'help.models.bestFor.base': 'Trascrizione veloce',
+  'help.models.bestFor.small': 'Bilanciamento velocità/qualità',
+  'help.models.bestFor.medium': 'Alta qualità',
+  'help.models.bestFor.large': 'Qualità massima',
+  'help.models.bestFor.turbo': 'Veloce + qualità',
+  'help.models.englishOnly':
+    "Le varianti English-only (.en) sono disponibili per i modelli tiny, base, small e medium — sono più veloci e leggermente più precise quando l'audio è solo in inglese.",
+  'help.models.download':
+    'I modelli vengono scaricati automaticamente al primo utilizzo e salvati in cache. Le trascrizioni successive con lo stesso modello partono istantaneamente.',
 
   // Footer
   'footer.help': 'Bisogno di aiuto?',
   'footer.signature': 'Design Group Italia – Team PM',
-  'footer.credits': 'Basato su WhisperDesk · powered by whisper.cpp',
+  'footer.credits': 'Basato su WhisperDesk · powered by whisper.cpp + sherpa-onnx',
 
   // Settings panel
   'settings.title': 'Impostazioni',

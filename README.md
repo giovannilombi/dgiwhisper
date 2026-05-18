@@ -1,8 +1,8 @@
 # 🎙️ DGI-Whisper
 
-Local only, privacy-first AI transcription.
+Local only, privacy-first AI transcription and diarization.
 
-> Based on [WhisperDesk](https://github.com/PVAS-Development/whisperdesk) · powered by [whisper.cpp](https://github.com/ggml-org/whisper.cpp).
+> Based on [WhisperDesk](https://github.com/PVAS-Development/whisperdesk) · powered by [whisper.cpp](https://github.com/ggml-org/whisper.cpp) and [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx).
 
 ![DGI-Whisper Screenshot](src/docs/screenshot.png)
 

@@ -6,3 +6,5 @@ export { ProgressBar } from './ProgressBar';
 export { SystemWarning } from './SystemWarning';
 export { DebugLogsModal } from './DebugLogsModal';
 export type { DebugLogsModalProps } from './DebugLogsModal';
+export { HelpModal } from './HelpModal';
+export type { HelpModalProps } from './HelpModal';

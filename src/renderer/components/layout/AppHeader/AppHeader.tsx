@@ -1,6 +1,6 @@
-import React from 'react';
-import { Moon, Sun, History, Terminal } from 'lucide-react';
-import { Button } from '../../ui';
+import React, { useState } from 'react';
+import { Moon, Sun, History, Terminal, HelpCircle } from 'lucide-react';
+import { Button, HelpModal } from '../../ui';
 import { useAppTheme, useAppHistory } from '../../../contexts';
 import { useDebugLogs } from '../../../hooks';
 import { DebugLogsModal } from '../../ui/DebugLogsModal';
@@ -11,6 +11,7 @@ function AppHeader(): React.JSX.Element {
   const { theme, toggleTheme } = useAppTheme();
   const { history, toggleHistory } = useAppHistory();
   const { t } = useTranslation();
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const {
     logs,
     isOpen: isDebugLogsOpen,
@@ -61,6 +62,14 @@ function AppHeader(): React.JSX.Element {
             >
               {t('header.history', { count: history.length })}
             </Button>
+            <Button
+              variant="icon"
+              icon={<HelpCircle size={18} />}
+              iconOnly
+              onClick={() => setIsHelpOpen(true)}
+              title={t('header.help')}
+              aria-label={t('header.openHelp')}
+            />
             <LanguageSwitcher />
           </div>
         </div>
@@ -74,6 +83,8 @@ function AppHeader(): React.JSX.Element {
         onCopyLogsWithSystemInfo={copyLogsWithSystemInfo}
         onClearLogs={clearLogs}
       />
+
+      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </>
   );
 }
