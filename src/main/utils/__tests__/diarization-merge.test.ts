@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseVtt, assignSpeakers, remapSpeakers } from '../diarization-merge';
+import {
+  parseVtt,
+  assignSpeakers,
+  splitSegmentsBySpeakers,
+  remapSpeakers,
+} from '../diarization-merge';
 
 describe('parseVtt', () => {
   it('parses a simple two-cue VTT', () => {
@@ -97,6 +102,81 @@ describe('assignSpeakers', () => {
       { start: 3, end: 10, speaker: 1 },
     ];
     expect(assignSpeakers(whisper, diar)[0]?.speaker).toBe(1);
+  });
+});
+
+describe('splitSegmentsBySpeakers', () => {
+  it('keeps a single-speaker segment intact', () => {
+    const whisper = [{ start: 0, end: 4, text: 'hello there friend' }];
+    const diar = [{ start: 0, end: 4, speaker: 1 }];
+    expect(splitSegmentsBySpeakers(whisper, diar)).toEqual([
+      { start: 0, end: 4, text: 'hello there friend', speaker: 1 },
+    ]);
+  });
+
+  it('splits a two-speaker exchange proportionally by time', () => {
+    // 10s cue, four words evenly spaced. Speaker A talks for the first 5s,
+    // speaker B for the last 5s — so two words should land on each side.
+    const whisper = [{ start: 0, end: 10, text: 'one two three four' }];
+    const diar = [
+      { start: 0, end: 5, speaker: 0 },
+      { start: 5, end: 10, speaker: 1 },
+    ];
+    expect(splitSegmentsBySpeakers(whisper, diar)).toEqual([
+      { start: 0, end: 5, text: 'one two', speaker: 0 },
+      { start: 5, end: 10, text: 'three four', speaker: 1 },
+    ]);
+  });
+
+  it('assigns at least one word to every speaker even with skewed time ratios', () => {
+    // Speaker B only gets 1s of a 10s cue with 5 words — but it still owns
+    // at least one word, leaving 4 for speaker A.
+    const whisper = [{ start: 0, end: 10, text: 'one two three four five' }];
+    const diar = [
+      { start: 0, end: 9, speaker: 0 },
+      { start: 9, end: 10, speaker: 1 },
+    ];
+    const out = splitSegmentsBySpeakers(whisper, diar);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toEqual({ start: 0, end: 9, text: 'one two three four', speaker: 0 });
+    expect(out[1]).toEqual({ start: 9, end: 10, text: 'five', speaker: 1 });
+  });
+
+  it('uses the longest span when the cue is too short to split (≤1 word)', () => {
+    const whisper = [{ start: 0, end: 2, text: 'hi' }];
+    const diar = [
+      { start: 0, end: 0.4, speaker: 0 },
+      { start: 0.4, end: 2, speaker: 1 },
+    ];
+    expect(splitSegmentsBySpeakers(whisper, diar)).toEqual([
+      { start: 0, end: 2, text: 'hi', speaker: 1 },
+    ]);
+  });
+
+  it('falls back to the previous speaker when there is no diarization overlap', () => {
+    const whisper = [
+      { start: 0, end: 2, text: 'first' },
+      { start: 10, end: 12, text: 'isolated' },
+    ];
+    const diar = [{ start: 0, end: 2, speaker: 3 }];
+    expect(splitSegmentsBySpeakers(whisper, diar)).toEqual([
+      { start: 0, end: 2, text: 'first', speaker: 3 },
+      { start: 10, end: 12, text: 'isolated', speaker: 3 },
+    ]);
+  });
+
+  it('merges very close same-speaker spans inside a cue', () => {
+    // Two segmentation gaps of <0.5s inside one speaker's turn should not
+    // produce three output segments — they collapse back into one.
+    const whisper = [{ start: 0, end: 6, text: 'a b c d e f' }];
+    const diar = [
+      { start: 0, end: 2, speaker: 0 },
+      { start: 2.2, end: 4, speaker: 0 },
+      { start: 4.3, end: 6, speaker: 0 },
+    ];
+    expect(splitSegmentsBySpeakers(whisper, diar)).toEqual([
+      { start: 0, end: 6, text: 'a b c d e f', speaker: 0 },
+    ]);
   });
 });
 

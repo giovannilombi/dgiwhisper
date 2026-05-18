@@ -2,9 +2,60 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle, Loader, Clock, XCircle, Slash, X, Trash2, RotateCcw } from 'lucide-react';
 import { Button } from '../../../../components/ui';
 import { formatFileSize } from '../../../../utils';
-import type { QueueItem, QueueItemStatus } from '../../../../types';
+import type { QueueItem, QueueItemStatus, TranscriptionProgress } from '../../../../types';
 import { toUserFriendlyTranscriptionError } from '../../utils/errorMessages';
-import { useTranslation } from '../../../../i18n';
+import { useTranslation, type TranslationKey } from '../../../../i18n';
+
+type Translator = (key: TranslationKey, params?: Record<string, string | number>) => string;
+
+const DIARIZING_MESSAGE_KEYS = [
+  'progress.diarizing.msg.1',
+  'progress.diarizing.msg.2',
+  'progress.diarizing.msg.3',
+  'progress.diarizing.msg.4',
+  'progress.diarizing.msg.5',
+  'progress.diarizing.msg.6',
+  'progress.diarizing.msg.7',
+  'progress.diarizing.msg.8',
+  'progress.diarizing.msg.9',
+  'progress.diarizing.msg.10',
+  'progress.diarizing.msg.11',
+  'progress.diarizing.msg.12',
+  'progress.diarizing.msg.13',
+  'progress.diarizing.msg.14',
+  'progress.diarizing.msg.15',
+  'progress.diarizing.msg.16',
+  'progress.diarizing.msg.17',
+  'progress.diarizing.msg.18',
+  'progress.diarizing.msg.19',
+  'progress.diarizing.msg.20',
+] as const satisfies readonly TranslationKey[];
+
+function translateProgressPhase(
+  progress: TranscriptionProgress,
+  t: Translator,
+  diarizingMessageIndex: number
+): string {
+  const phase = progress.phase;
+  switch (phase) {
+    case 'preparing':
+      return t('progress.preparing');
+    case 'converting':
+      return t('progress.converting');
+    case 'transcribing':
+      return t('progress.transcribingPercent', {
+        percent: Math.max(0, Math.min(100, Math.round(progress.percent))),
+      });
+    case 'diarizing': {
+      const msgKey = DIARIZING_MESSAGE_KEYS[diarizingMessageIndex % DIARIZING_MESSAGE_KEYS.length];
+      return msgKey ? t(msgKey) : t('progress.diarizing');
+    }
+    case 'complete':
+      return t('progress.complete');
+    default:
+      return progress.status;
+  }
+}
 import './FileQueue.css';
 
 export interface FileQueueProps {
@@ -66,7 +117,23 @@ function FileQueue({
 }: FileQueueProps): React.JSX.Element | null {
   const { t } = useTranslation();
   const [removeErrorToastMessage, setRemoveErrorToastMessage] = useState<string | null>(null);
+  const [diarizingMessageIndex, setDiarizingMessageIndex] = useState(0);
   const removeErrorToastTimeoutRef = useRef<number | null>(null);
+
+  const isAnyDiarizing = queue.some(
+    (q) => q.status === 'processing' && q.progress.phase === 'diarizing'
+  );
+
+  useEffect(() => {
+    if (!isAnyDiarizing) {
+      setDiarizingMessageIndex(0);
+      return undefined;
+    }
+    const interval = window.setInterval(() => {
+      setDiarizingMessageIndex((idx) => (idx + 1) % DIARIZING_MESSAGE_KEYS.length);
+    }, 10000);
+    return () => window.clearInterval(interval);
+  }, [isAnyDiarizing]);
 
   const clearRemoveErrorToastTimer = useCallback(() => {
     if (removeErrorToastTimeoutRef.current === null) {
@@ -180,12 +247,33 @@ function FileQueue({
             <div className="file-queue-item-content">
               <span className="file-queue-item-name">{item.file.name}</span>
               {item.status === 'processing' && (
-                <div className="file-queue-item-progress">
-                  <div
-                    className="file-queue-item-progress-bar"
-                    style={{ width: `${item.progress.percent}%` }}
-                  />
-                </div>
+                <>
+                  <span
+                    className={`file-queue-item-phase ${item.progress.phase ?? 'transcribing'}`}
+                  >
+                    {translateProgressPhase(item.progress, t, diarizingMessageIndex)}
+                  </span>
+                  {item.progress.phase === 'diarizing' ? (
+                    <div className="file-queue-item-progress indeterminate">
+                      <div className="file-queue-item-progress-bar" />
+                    </div>
+                  ) : (
+                    <div className="file-queue-item-progress">
+                      <div
+                        className="file-queue-item-progress-bar"
+                        style={{ width: `${item.progress.percent}%` }}
+                      />
+                    </div>
+                  )}
+                  {typeof item.progress.audioDurationSec === 'number' &&
+                    item.progress.audioDurationSec > 0 && (
+                      <span className="file-queue-item-eta">
+                        {t('queue.item.eta', {
+                          duration: formatEstimatedTime(item.progress.audioDurationSec / 3),
+                        })}
+                      </span>
+                    )}
+                </>
               )}
               {item.status === 'error' && item.error && (
                 <span
@@ -197,7 +285,7 @@ function FileQueue({
               )}
             </div>
             <div className="file-queue-item-meta">
-              {item.status === 'processing' && (
+              {item.status === 'processing' && item.progress.phase !== 'diarizing' && (
                 <span className="file-queue-item-percent">{item.progress.percent}%</span>
               )}
               {item.file.size && (

@@ -1,6 +1,6 @@
 .output-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
@@ -14,21 +14,54 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.8px;
+  white-space: nowrap;
 }
 
 .output-meta {
-  flex: 1;
+  min-width: 0;
 }
 
 .word-count {
   font-size: 0.8rem;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .output-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.media-toggle-label-short {
+  display: none;
+}
+
+/* Container-query-driven: respond to the right panel width, not the
+   viewport width, so the toolbar stacks whenever its own column gets
+   narrow regardless of the overall window size. */
+@container output (max-width: 900px) {
+  .output-header {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    row-gap: 10px;
+  }
+
+  .output-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+  }
+
+  .media-toggle-label-full {
+    display: none;
+  }
+
+  .media-toggle-label-short {
+    display: inline;
+  }
 }
 
 .media-toggle {

@@ -9,4 +9,6 @@
   box-shadow: var(--shadow);
   min-height: 0;
   transition: all var(--transition-base);
+  container-type: inline-size;
+  container-name: output;
 }

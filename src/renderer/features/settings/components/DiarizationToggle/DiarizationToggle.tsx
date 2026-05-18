@@ -8,6 +8,8 @@ export interface DiarizationToggleProps {
   enabled: boolean;
   disabled?: boolean;
   onChange: (enabled: boolean) => void;
+  speakerCount?: number;
+  onSpeakerCountChange?: (count: number | undefined) => void;
 }
 
 function DiarizationInfoModal({ onClose }: { onClose: () => void }): React.JSX.Element {
@@ -95,9 +97,22 @@ function DiarizationToggle({
   enabled,
   disabled = false,
   onChange,
+  speakerCount,
+  onSpeakerCountChange,
 }: DiarizationToggleProps): React.JSX.Element {
   const { t } = useTranslation();
   const [showInfo, setShowInfo] = useState(false);
+
+  const handleSpeakerCountChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    if (value === 'auto') {
+      onSpeakerCountChange?.(undefined);
+    } else {
+      onSpeakerCountChange?.(Number.parseInt(value, 10));
+    }
+  };
+
+  const speakerSelectValue = typeof speakerCount === 'number' ? String(speakerCount) : 'auto';
 
   return (
     <>
@@ -129,6 +144,28 @@ function DiarizationToggle({
           className="diarization-info-button"
         />
       </div>
+      {enabled && (
+        <div className={`diarization-speakers-row${disabled ? ' disabled' : ''}`}>
+          <label htmlFor="diarization-speaker-count" className="diarization-speakers-label">
+            {t('diarization.speakerCount.label')}
+          </label>
+          <select
+            id="diarization-speaker-count"
+            className="diarization-speakers-select"
+            value={speakerSelectValue}
+            disabled={disabled}
+            onChange={handleSpeakerCountChange}
+            aria-label={t('diarization.speakerCount.label')}
+          >
+            <option value="auto">{t('diarization.speakerCount.auto')}</option>
+            {[2, 3, 4, 5, 6, 7, 8].map((n) => (
+              <option key={n} value={String(n)}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {showInfo && <DiarizationInfoModal onClose={() => setShowInfo(false)} />}
     </>
   );

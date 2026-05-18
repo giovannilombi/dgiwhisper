@@ -97,6 +97,40 @@
   flex-shrink: 0;
 }
 
+.diarization-speakers-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -8px 0 14px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+}
+
+.diarization-speakers-row.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.diarization-speakers-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.diarization-speakers-select {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  min-width: 110px;
+}
+
 .diarization-info-overlay {
   position: fixed;
   inset: 0;

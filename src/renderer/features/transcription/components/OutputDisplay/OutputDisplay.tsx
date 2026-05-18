@@ -310,6 +310,14 @@ function OutputDisplay({
         />
       )}
 
+      {hasDiarization && selectedFile && (
+        <TranscriptMediaPlayer
+          selectedFile={selectedFile}
+          onMediaElementChange={handleMediaElementChange}
+          onPlaybackTimeChange={() => {}}
+        />
+      )}
+
       {hasDiarization && (
         <SpeakerLabeledTranscript
           segments={diarizationSegments!}
@@ -317,6 +325,13 @@ function OutputDisplay({
           initialLabels={diarizationLabels}
           onLabelsChange={handleSpeakerLabelsChange}
           onSegmentsChange={handleDiarizedSegmentsChange}
+          onSeek={(seconds) => {
+            const media = mediaRef.current;
+            if (media) {
+              media.currentTime = seconds;
+              void media.play().catch(() => {});
+            }
+          }}
         />
       )}
 

@@ -135,7 +135,8 @@
     ],
     "asarUnpack": [
       "bin/**/*",
-      "node_modules/@ffmpeg-installer/**/*"
+      "node_modules/@ffmpeg-installer/**/*",
+      "dist-electron/diarization-worker.cjs"
     ],
     "mac": {
       "category": "public.app-category.productivity",

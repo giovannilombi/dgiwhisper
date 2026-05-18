@@ -614,6 +614,7 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
           language: settings.language,
           outputFormat: 'vtt',
           diarize: settings.diarize === true,
+          diarizeSpeakers: settings.diarizeSpeakers,
         });
 
         const endTime = Date.now();

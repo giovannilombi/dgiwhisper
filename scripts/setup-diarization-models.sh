@@ -12,8 +12,8 @@ SEGMENTATION_ARCHIVE_URL="https://github.com/k2-fsa/sherpa-onnx/releases/downloa
 SEGMENTATION_DIR_NAME="sherpa-onnx-pyannote-segmentation-3-0"
 SEGMENTATION_MODEL_FILE="model.onnx"
 
-EMBEDDING_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
-EMBEDDING_MODEL_FILE="3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx"
+EMBEDDING_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
+EMBEDDING_MODEL_FILE="3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx"
 
 mkdir -p "$MODELS_DIR"
 cd "$MODELS_DIR"

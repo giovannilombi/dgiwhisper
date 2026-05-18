@@ -95,6 +95,24 @@
   font-variant-numeric: tabular-nums;
 }
 
+.speaker-block-time-clickable {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.speaker-block-time-clickable:hover {
+  background: var(--surface);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 .speaker-block-actions {
   display: flex;
   align-items: center;

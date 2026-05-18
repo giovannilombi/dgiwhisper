@@ -166,6 +166,8 @@ function SettingsPanel({
         enabled={settings.diarize === true}
         disabled={disabled}
         onChange={(diarize) => onChange({ ...settings, diarize })}
+        speakerCount={settings.diarizeSpeakers}
+        onSpeakerCountChange={(diarizeSpeakers) => onChange({ ...settings, diarizeSpeakers })}
       />
 
       <ModelSelector

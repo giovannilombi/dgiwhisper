@@ -128,6 +128,42 @@
   text-overflow: ellipsis;
 }
 
+.file-queue-item-phase {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin: 2px 0;
+  font-weight: 500;
+}
+
+.file-queue-item-phase.diarizing {
+  color: #16a34a;
+  font-weight: 600;
+  /* Reserve room for up to two text lines so the cell does not jump in
+     height every time a rotating message is longer than the previous one. */
+  min-height: 2.4em;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.file-queue-item-phase.diarizing::before {
+  content: '🎙 ';
+}
+
+.file-queue-item-eta {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+  /* Match the model-speed badge styling for visual consistency */
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
 .file-queue-item-progress {
   height: 4px;
   background: var(--border);
@@ -140,6 +176,31 @@
   background: var(--accent);
   border-radius: 2px;
   transition: width var(--transition-fast);
+}
+
+.file-queue-item-content:has(.file-queue-item-phase.diarizing) .file-queue-item-progress-bar {
+  background: #16a34a;
+}
+
+.file-queue-item-progress.indeterminate {
+  position: relative;
+  overflow: hidden;
+}
+
+.file-queue-item-progress.indeterminate .file-queue-item-progress-bar {
+  width: 40%;
+  background: #16a34a;
+  animation: fileQueueIndeterminate 1.4s ease-in-out infinite;
+  transition: none;
+}
+
+@keyframes fileQueueIndeterminate {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(260%);
+  }
 }
 
 .file-queue-item-error {

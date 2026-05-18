@@ -19,7 +19,8 @@ import type {
 import { sanitizePath } from '../../shared/utils';
 import { detectGpuStatus } from './gpu-detector';
 import { runDiarization } from './diarization';
-import { parseVtt, assignSpeakers, remapSpeakers } from '../utils/diarization-merge';
+import { parseVtt, splitSegmentsBySpeakers, remapSpeakers } from '../utils/diarization-merge';
+import log from 'electron-log';
 
 interface WhisperModelInfo {
   size: string;
@@ -97,6 +98,9 @@ const MODEL_ALIASES: Record<string, string> = {
 };
 
 const SUBTITLE_MAX_SEGMENT_CHARS = 80;
+// Tighter cap when diarizing so the speaker-boundary splitter has
+// fine-grained whisper cues to map to the diarization timeline.
+const DIARIZE_SUBTITLE_MAX_SEGMENT_CHARS = 24;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -404,7 +408,28 @@ export function checkGpuStatus(): GpuInfo {
   return detectGpuStatus();
 }
 
-function convertToWav(inputPath: string, outputPath: string): Promise<string> {
+// Pull the input duration out of ffmpeg's stderr. ffmpeg prints exactly one
+// line like `Duration: HH:MM:SS.ss, start: ...` for the input stream during
+// header parsing; we surface this so the queue can show an ETA before the
+// wav file even exists on disk.
+const FFMPEG_DURATION_RE = /Duration:\s*(\d+):(\d{2}):(\d{2})(?:\.(\d+))?/;
+
+function parseFfmpegDurationSec(stderrChunk: string): number | null {
+  const m = stderrChunk.match(FFMPEG_DURATION_RE);
+  if (!m) return null;
+  const h = parseInt(m[1] ?? '0', 10);
+  const mm = parseInt(m[2] ?? '0', 10);
+  const s = parseInt(m[3] ?? '0', 10);
+  const frac = m[4] ? parseInt(m[4], 10) / Math.pow(10, m[4].length) : 0;
+  const total = h * 3600 + mm * 60 + s + frac;
+  return Number.isFinite(total) && total > 0 ? total : null;
+}
+
+function convertToWav(
+  inputPath: string,
+  outputPath: string,
+  onDurationDetected?: (durationSec: number) => void
+): Promise<string> {
   return new Promise((resolve, reject) => {
     let ffmpegPath = 'ffmpeg';
     for (const p of getFfmpegPaths()) {
@@ -433,8 +458,17 @@ function convertToWav(inputPath: string, outputPath: string): Promise<string> {
     });
 
     let stderr = '';
+    let durationEmitted = false;
     proc.stderr.on('data', (data) => {
-      stderr += data.toString();
+      const chunk = data.toString();
+      stderr += chunk;
+      if (!durationEmitted && onDurationDetected) {
+        const dur = parseFfmpegDurationSec(stderr);
+        if (dur !== null) {
+          durationEmitted = true;
+          onDurationDetected(dur);
+        }
+      }
     });
 
     proc.on('close', (code) => {
@@ -455,7 +489,7 @@ export function transcribe(
   options: TranscriptionOptions,
   onProgress?: (progress: TranscriptionProgress) => void
 ): Promise<TranscriptionResult> & { cancel?: () => void } {
-  const { filePath, model, language, outputFormat, diarize } = options;
+  const { filePath, model, language, outputFormat, diarize, diarizeSpeakers } = options;
   let proc: ChildProcess | null = null;
   let cancelled = false;
   const diarizationAbort = new AbortController();
@@ -488,11 +522,12 @@ export function transcribe(
         return;
       }
 
-      onProgress?.({ percent: 5, status: 'Preparing audio...' });
+      onProgress?.({ percent: 5, status: 'Preparing audio...', phase: 'preparing' });
 
       const ext = path.extname(filePath).toLowerCase();
       let audioPath = filePath;
       let tempWavPath: string | null = null;
+      let audioDurationSec: number | undefined;
 
       // Diarization needs a guaranteed 16 kHz mono wav, so we force-convert
       // even when the input is already .wav (it may be 44.1 kHz / stereo).
@@ -500,8 +535,23 @@ export function transcribe(
       if (needsWavConversion) {
         tempWavPath = path.join(app.getPath('temp'), `whisperdesk_${crypto.randomUUID()}.wav`);
         try {
-          audioPath = await convertToWav(filePath, tempWavPath);
-          onProgress?.({ percent: 15, status: 'Audio converted. Starting transcription...' });
+          audioPath = await convertToWav(filePath, tempWavPath, (durationSec) => {
+            audioDurationSec = durationSec;
+            // Surface the duration as soon as ffmpeg has read the input
+            // header, so the queue can show an ETA during conversion already.
+            onProgress?.({
+              percent: 10,
+              status: 'Converting audio...',
+              phase: 'converting',
+              audioDurationSec,
+            });
+          });
+          onProgress?.({
+            percent: 15,
+            status: 'Audio converted. Starting transcription...',
+            phase: 'converting',
+            audioDurationSec,
+          });
         } catch (err) {
           try {
             if (fs.existsSync(tempWavPath)) fs.unlinkSync(tempWavPath);
@@ -513,7 +563,26 @@ export function transcribe(
         }
       }
 
-      onProgress?.({ percent: 20, status: 'Transcribing...' });
+      // Fallback when no conversion happened (input is already a 16 kHz mono
+      // 16-bit wav): derive duration from the file size. 1s ≈ 32_000 bytes;
+      // the 44-byte header is close enough for a UI estimate.
+      if (audioDurationSec === undefined) {
+        try {
+          if (audioPath && fs.existsSync(audioPath)) {
+            const sizeBytes = fs.statSync(audioPath).size;
+            audioDurationSec = Math.max(0, (sizeBytes - 44) / 32_000);
+          }
+        } catch {
+          audioDurationSec = undefined;
+        }
+      }
+
+      onProgress?.({
+        percent: 20,
+        status: 'Transcribing...',
+        phase: 'transcribing',
+        audioDurationSec,
+      });
 
       const outputBase = path.join(app.getPath('temp'), `whisper_output_${crypto.randomUUID()}`);
 
@@ -536,6 +605,15 @@ export function transcribe(
         }
       };
 
+      // When diarizing, request shorter whisper cues. Each cue's timing is
+      // the only signal the speaker-splitter has to align words to the
+      // diarization timeline, so finer-grained cues mean the proportional
+      // split at speaker boundaries is much closer to the actual word
+      // timing — which in turn keeps speakers from being mixed within a
+      // cluster.
+      const maxSegmentChars =
+        diarize === true ? DIARIZE_SUBTITLE_MAX_SEGMENT_CHARS : SUBTITLE_MAX_SEGMENT_CHARS;
+
       const args = [
         '-m',
         modelPath,
@@ -545,7 +623,7 @@ export function transcribe(
         '--output-vtt', // Output VTT subtitles
         '--no-timestamps', // Don't print timestamps in main output (we use VTT)
         '--max-len',
-        String(SUBTITLE_MAX_SEGMENT_CHARS),
+        String(maxSegmentChars),
         '--split-on-word',
         '-pp', // Print progress
         '-of',
@@ -585,7 +663,12 @@ export function transcribe(
         if (progressMatch && progressMatch[1]) {
           const percent = Math.min(100, parseInt(progressMatch[1], 10));
           const scaledPercent = 20 + Math.round((percent / 100) * 70);
-          onProgress?.({ percent: scaledPercent, status: `Transcribing... ${percent}%` });
+          onProgress?.({
+            percent: scaledPercent,
+            status: `Transcribing... ${percent}%`,
+            phase: 'transcribing',
+            audioDurationSec,
+          });
         }
       });
 
@@ -633,13 +716,38 @@ export function transcribe(
         }
 
         let diarizationFields: { segments?: TranscribedSegment[]; speakers?: number } = {};
-        if (diarize && vtt && audioPath && fs.existsSync(audioPath)) {
-          onProgress?.({ percent: 92, status: 'Identifying speakers...' });
+        const wantsDiarization = diarize === true;
+        log.info('[transcribe] diarization branch entry', {
+          wantsDiarization,
+          hasVtt: Boolean(vtt),
+          audioPath: sanitizePath(audioPath),
+          audioExists: audioPath ? fs.existsSync(audioPath) : false,
+        });
+        if (wantsDiarization && vtt && audioPath && fs.existsSync(audioPath)) {
+          onProgress?.({
+            percent: 92,
+            status: 'Identifying speakers...',
+            phase: 'diarizing',
+            audioDurationSec,
+          });
           try {
-            const diarSegs = await runDiarization(audioPath, {}, diarizationAbort.signal);
+            log.info('[transcribe] starting diarization');
+            const diarSegs = await runDiarization(
+              audioPath,
+              typeof diarizeSpeakers === 'number' && diarizeSpeakers > 0
+                ? { numClusters: diarizeSpeakers }
+                : {},
+              diarizationAbort.signal
+            );
+            log.info('[transcribe] diarization returned', { count: diarSegs.length });
             const whisperSegs = parseVtt(vtt);
-            const tagged = assignSpeakers(whisperSegs, diarSegs);
-            const { segments, speakerCount } = remapSpeakers(tagged);
+            const split = splitSegmentsBySpeakers(whisperSegs, diarSegs);
+            const { segments, speakerCount } = remapSpeakers(split);
+            log.info('[transcribe] diarization merge complete', {
+              whisperSegments: whisperSegs.length,
+              splitSegments: split.length,
+              speakerCount,
+            });
             diarizationFields = { segments, speakers: speakerCount };
           } catch (err) {
             if (cancelled) {
@@ -647,8 +755,16 @@ export function transcribe(
               resolve({ success: true, cancelled: true, text: '' });
               return;
             }
-            console.error('Diarization failed; returning transcript without speakers:', err);
+            log.error('[transcribe] diarization failed; returning transcript without speakers', {
+              message: err instanceof Error ? err.message : String(err),
+              stack: err instanceof Error ? err.stack : undefined,
+            });
           }
+        } else if (wantsDiarization) {
+          log.warn('[transcribe] diarization skipped despite toggle', {
+            hasVtt: Boolean(vtt),
+            hasAudioPath: Boolean(audioPath),
+          });
         }
 
         if (cancelled) {
@@ -658,7 +774,7 @@ export function transcribe(
         }
 
         cleanupFiles();
-        onProgress?.({ percent: 100, status: 'Complete!' });
+        onProgress?.({ percent: 100, status: 'Complete!', phase: 'complete' });
 
         resolve({
           success: true,

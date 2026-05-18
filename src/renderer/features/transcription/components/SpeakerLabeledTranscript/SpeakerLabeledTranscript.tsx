@@ -11,6 +11,7 @@ export interface SpeakerLabeledTranscriptProps {
   initialLabels?: Record<number, string>;
   onLabelsChange?: (labels: Record<number, string>) => void;
   onSegmentsChange?: (segments: TranscribedSegment[]) => void;
+  onSeek?: (seconds: number) => void;
 }
 
 interface SpeakerBlock {
@@ -59,6 +60,7 @@ function SpeakerLabeledTranscript({
   initialLabels,
   onLabelsChange,
   onSegmentsChange,
+  onSeek,
 }: SpeakerLabeledTranscriptProps): React.JSX.Element {
   const { t } = useTranslation();
   const defaultLabelFor = useCallback(
@@ -240,9 +242,20 @@ function SpeakerLabeledTranscript({
                       <Pencil size={12} aria-hidden="true" />
                     </button>
                   )}
-                  <span className="speaker-block-time">
-                    {formatTime(block.startSec)} – {formatTime(block.endSec)}
-                  </span>
+                  {onSeek ? (
+                    <button
+                      type="button"
+                      className="speaker-block-time speaker-block-time-clickable"
+                      onClick={() => onSeek(block.startSec)}
+                      title={t('transcript.playFrom', { timestamp: formatTime(block.startSec) })}
+                    >
+                      {formatTime(block.startSec)} – {formatTime(block.endSec)}
+                    </button>
+                  ) : (
+                    <span className="speaker-block-time">
+                      {formatTime(block.startSec)} – {formatTime(block.endSec)}
+                    </span>
+                  )}
                 </div>
                 <div className="speaker-block-actions">
                   {otherSpeakers.length > 0 && (

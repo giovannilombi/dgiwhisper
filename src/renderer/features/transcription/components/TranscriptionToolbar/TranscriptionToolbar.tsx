@@ -69,7 +69,12 @@ function TranscriptionToolbar({
         <div className="output-actions">
           {showMediaToggle && (
             <label className="media-toggle" title={t('toolbar.mediaToggleTitle')}>
-              <span className="media-toggle-label">{t('toolbar.mediaPlayer')}</span>
+              <span className="media-toggle-label media-toggle-label-full">
+                {t('toolbar.mediaPlayer')}
+              </span>
+              <span className="media-toggle-label media-toggle-label-short">
+                {t('toolbar.mediaPlayer.short')}
+              </span>
               <input
                 type="checkbox"
                 role="switch"

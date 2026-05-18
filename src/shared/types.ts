@@ -38,6 +38,10 @@ export interface TranscriptionSettings {
   model: WhisperModelName;
   language: LanguageCode;
   diarize?: boolean;
+  // Optional: number of speakers the user expects. When set, the
+  // diarization engine is forced to produce exactly this many clusters.
+  // Undefined (default "Auto") lets the algorithm guess via threshold.
+  diarizeSpeakers?: number;
 }
 
 export type QualityLevel = 1 | 2 | 3 | 4 | 5;
@@ -67,9 +71,18 @@ export interface ModelDownloadProgress {
   error?: string;
 }
 
+export type TranscriptionPhase =
+  | 'preparing'
+  | 'converting'
+  | 'transcribing'
+  | 'diarizing'
+  | 'complete';
+
 export interface TranscriptionProgress {
   percent: number;
   status: string;
+  phase?: TranscriptionPhase;
+  audioDurationSec?: number;
 }
 
 export interface TranscriptionOptions {
@@ -78,6 +91,7 @@ export interface TranscriptionOptions {
   language: LanguageCode;
   outputFormat: OutputFormat;
   diarize?: boolean;
+  diarizeSpeakers?: number;
 }
 
 export interface TranscribedSegment {
