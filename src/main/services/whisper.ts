@@ -19,7 +19,14 @@ import type {
 import { sanitizePath } from '../../shared/utils';
 import { detectGpuStatus } from './gpu-detector';
 import { runDiarization } from './diarization';
-import { parseVtt, splitSegmentsBySpeakers, remapSpeakers } from '../utils/diarization-merge';
+import {
+  parseVtt,
+  splitSegmentsBySpeakers,
+  parseWhisperJsonFull,
+  mergeTokensWithDiarization,
+  dropTinyDiarizationClusters,
+  remapSpeakers,
+} from '../utils/diarization-merge';
 import log from 'electron-log';
 
 interface WhisperModelInfo {
@@ -98,9 +105,6 @@ const MODEL_ALIASES: Record<string, string> = {
 };
 
 const SUBTITLE_MAX_SEGMENT_CHARS = 80;
-// Tighter cap when diarizing so the speaker-boundary splitter has
-// fine-grained whisper cues to map to the diarization timeline.
-const DIARIZE_SUBTITLE_MAX_SEGMENT_CHARS = 24;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -598,21 +602,14 @@ export function transcribe(
         try {
           const txtPath = outputBase + '.txt';
           const vttPath = outputBase + '.vtt';
+          const jsonPath = outputBase + '.json';
           if (fs.existsSync(txtPath)) fs.unlinkSync(txtPath);
           if (fs.existsSync(vttPath)) fs.unlinkSync(vttPath);
+          if (fs.existsSync(jsonPath)) fs.unlinkSync(jsonPath);
         } catch (e) {
           console.error('Failed to delete output files:', e);
         }
       };
-
-      // When diarizing, request shorter whisper cues. Each cue's timing is
-      // the only signal the speaker-splitter has to align words to the
-      // diarization timeline, so finer-grained cues mean the proportional
-      // split at speaker boundaries is much closer to the actual word
-      // timing — which in turn keeps speakers from being mixed within a
-      // cluster.
-      const maxSegmentChars =
-        diarize === true ? DIARIZE_SUBTITLE_MAX_SEGMENT_CHARS : SUBTITLE_MAX_SEGMENT_CHARS;
 
       const args = [
         '-m',
@@ -623,12 +620,21 @@ export function transcribe(
         '--output-vtt', // Output VTT subtitles
         '--no-timestamps', // Don't print timestamps in main output (we use VTT)
         '--max-len',
-        String(maxSegmentChars),
+        String(SUBTITLE_MAX_SEGMENT_CHARS),
         '--split-on-word',
         '-pp', // Print progress
         '-of',
         outputBase,
       ];
+
+      // When diarizing, also ask whisper for token-level timings via
+      // --output-json-full. The diarization merge uses these to assign
+      // each word to a speaker by its actual timestamp instead of guessing
+      // proportionally inside a long cue — that's the only way to keep
+      // text aligned with the player when speakers exchange mid-cue.
+      if (diarize === true) {
+        args.push('--output-json-full');
+      }
 
       // whisper.cpp defaults to English when -l is omitted.
       // Pass 'auto' explicitly to enable language auto-detection.
@@ -732,20 +738,65 @@ export function transcribe(
           });
           try {
             log.info('[transcribe] starting diarization');
-            const diarSegs = await runDiarization(
+            const rawDiarSegs = await runDiarization(
               audioPath,
               typeof diarizeSpeakers === 'number' && diarizeSpeakers > 0
                 ? { numClusters: diarizeSpeakers }
                 : {},
               diarizationAbort.signal
             );
-            log.info('[transcribe] diarization returned', { count: diarSegs.length });
-            const whisperSegs = parseVtt(vtt);
-            const split = splitSegmentsBySpeakers(whisperSegs, diarSegs);
-            const { segments, speakerCount } = remapSpeakers(split);
+            // If the user picked an explicit speaker count we trust it
+            // and skip the cull. With "Auto Detect", drop micro-clusters
+            // (< 3% of total speaking time) — these are almost always
+            // diarizer noise rather than a real participant.
+            const diarSegs =
+              typeof diarizeSpeakers === 'number' && diarizeSpeakers > 0
+                ? rawDiarSegs
+                : dropTinyDiarizationClusters(rawDiarSegs);
+            const rawSpeakers = new Set(rawDiarSegs.map((s) => s.speaker)).size;
+            const culledSpeakers = new Set(diarSegs.map((s) => s.speaker)).size;
+            log.info('[transcribe] diarization returned', {
+              segmentCount: diarSegs.length,
+              rawSpeakers,
+              culledSpeakers,
+            });
+
+            // Prefer the precise token-level merge using whisper's
+            // --output-json-full timings; fall back to the proportional
+            // VTT splitter if the JSON file isn't readable for any reason.
+            const jsonPath = outputBase + '.json';
+            let tagged: ReturnType<typeof splitSegmentsBySpeakers> = [];
+            let mergeStrategy: 'tokens' | 'split' = 'split';
+            if (fs.existsSync(jsonPath)) {
+              try {
+                const jsonText = fs.readFileSync(jsonPath, 'utf-8');
+                const tokens = parseWhisperJsonFull(jsonText);
+                if (tokens.length > 0) {
+                  tagged = mergeTokensWithDiarization(tokens, diarSegs);
+                  mergeStrategy = 'tokens';
+                  log.info('[transcribe] using token-level diarization merge', {
+                    tokenCount: tokens.length,
+                    segmentCount: tagged.length,
+                  });
+                }
+              } catch (jsonErr) {
+                log.warn('[transcribe] failed to parse whisper json-full output', {
+                  message: jsonErr instanceof Error ? jsonErr.message : String(jsonErr),
+                });
+              }
+            }
+            if (mergeStrategy === 'split') {
+              const whisperSegs = parseVtt(vtt);
+              tagged = splitSegmentsBySpeakers(whisperSegs, diarSegs);
+              log.info('[transcribe] falling back to VTT-level diarization merge', {
+                whisperSegments: whisperSegs.length,
+                splitSegments: tagged.length,
+              });
+            }
+            const { segments, speakerCount } = remapSpeakers(tagged);
             log.info('[transcribe] diarization merge complete', {
-              whisperSegments: whisperSegs.length,
-              splitSegments: split.length,
+              strategy: mergeStrategy,
+              segmentCount: segments.length,
               speakerCount,
             });
             diarizationFields = { segments, speakers: speakerCount };

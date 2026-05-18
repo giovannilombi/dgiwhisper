@@ -225,6 +225,277 @@ export function splitSegmentsBySpeakers(
   return result;
 }
 
+export interface WhisperToken {
+  /** Token text exactly as whisper emitted it, including a leading space when
+   *  the token starts a new word and including punctuation/special markers. */
+  text: string;
+  /** Start offset in seconds within the input audio. */
+  start: number;
+  /** End offset in seconds within the input audio. */
+  end: number;
+}
+
+/**
+ * Extract usable word-level tokens from a whisper `--output-json-full` (`-ojf`)
+ * JSON blob. Tokens that whisper emits to represent decoder state — anything
+ * matching `[_FOO_]`, the bare `[BLANK]` marker, or zero-length stamps —
+ * are filtered out so they do not contaminate the speaker assignment.
+ *
+ * `start`/`end` are converted from whisper's millisecond offsets to seconds
+ * so they line up directly with the diarization segment timeline.
+ */
+export function parseWhisperJsonFull(jsonText: string): WhisperToken[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    return [];
+  }
+  if (!parsed || typeof parsed !== 'object') return [];
+  const root = parsed as { transcription?: unknown };
+  const transcription = Array.isArray(root.transcription) ? root.transcription : [];
+
+  const result: WhisperToken[] = [];
+  for (const seg of transcription) {
+    if (!seg || typeof seg !== 'object') continue;
+    const tokens = (seg as { tokens?: unknown }).tokens;
+    if (!Array.isArray(tokens)) continue;
+    for (const tok of tokens) {
+      if (!tok || typeof tok !== 'object') continue;
+      const t = tok as {
+        text?: unknown;
+        offsets?: { from?: unknown; to?: unknown };
+      };
+      if (typeof t.text !== 'string') continue;
+      const from = Number(t.offsets?.from);
+      const to = Number(t.offsets?.to);
+      if (!Number.isFinite(from) || !Number.isFinite(to)) continue;
+      // Drop decoder-state / boundary tokens like [_BEG_], [_TT_525], [BLANK].
+      // Real text tokens never look like that.
+      if (/^\[_.+_\]$/.test(t.text) || t.text === '[BLANK]' || t.text.trim().length === 0) {
+        continue;
+      }
+      if (to <= from) continue;
+      result.push({ text: t.text, start: from / 1000, end: to / 1000 });
+    }
+  }
+  return result;
+}
+
+/**
+ * Assign a speaker to each whisper token by midpoint lookup against the
+ * diarization timeline, then merge consecutive same-speaker tokens into
+ * single segments. This is the precise alternative to splitting whisper
+ * cues proportionally by time — every word lands in the right cluster
+ * because we know its actual timestamp.
+ *
+ * Tokens whose midpoint falls in a diarization gap inherit the previous
+ * token's speaker (or the closest neighbour at the start of the audio).
+ */
+/**
+ * Default "short-run" cutoff used to suppress isolated speaker flips
+ * inside otherwise homogeneous speaker turns. Any interior run of fewer
+ * tokens than this — sandwiched between two runs of the SAME other
+ * speaker — is rewritten to match its neighbours. This kills the
+ * sentence-mid jitter produced by over-segmenting diarization without
+ * touching real turn-takes (which are always neighboured by a different
+ * speaker on the other side).
+ */
+const DEFAULT_MIN_RUN_TOKENS = 4;
+
+interface SpeakerRun {
+  speaker: number;
+  start: number;
+  end: number;
+}
+
+function runLength(run: SpeakerRun): number {
+  return run.end - run.start;
+}
+
+/**
+ * Collapse short interior speaker runs that are flanked by two longer runs
+ * of the same other speaker. This is the central post-processing step
+ * that takes a noisy 200+-segment diarization timeline and turns it into
+ * something resembling actual speaker turns. The operation is iterative
+ * because flattening one run can leave a new short run flanked the same
+ * way (e.g. `A A B A C A A` → `A A B A A A A` → `A A A A A A A`).
+ */
+export function killShortSpeakerRuns(
+  speakers: number[],
+  minRun: number = DEFAULT_MIN_RUN_TOKENS
+): number[] {
+  if (speakers.length === 0 || minRun <= 1) return [...speakers];
+
+  const runs: SpeakerRun[] = [];
+  let i = 0;
+  while (i < speakers.length) {
+    let j = i;
+    while (j < speakers.length && speakers[j] === speakers[i]) j++;
+    runs.push({ speaker: speakers[i]!, start: i, end: j });
+    i = j;
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (let r = 1; r < runs.length - 1; r++) {
+      const prev = runs[r - 1]!;
+      const curr = runs[r]!;
+      const next = runs[r + 1]!;
+      if (runLength(curr) >= minRun) continue;
+      if (prev.speaker !== next.speaker) continue;
+      // Merge prev + curr + next into a single run of prev.speaker.
+      prev.end = next.end;
+      runs.splice(r, 2);
+      changed = true;
+      r--; // re-check the newly merged neighbour against its surroundings
+    }
+  }
+
+  const out = new Array<number>(speakers.length);
+  for (const run of runs) {
+    for (let k = run.start; k < run.end; k++) out[k] = run.speaker;
+  }
+  return out;
+}
+
+/**
+ * Drop diarization clusters whose total speaking time is a negligible
+ * fraction of the recording. Tiny clusters are almost always artefacts
+ * of the diarizer — momentary embedding outliers triggered by breathing,
+ * coughs, room echo or a 100ms acoustic blip. Each segment that belonged
+ * to a dropped cluster is reassigned to the speaker of the temporally
+ * closest segment still alive after the cull.
+ *
+ * Conservative defaults: only clusters under 3% of the total duration are
+ * killed, AND we never kill so many that fewer than `minSpeakers`
+ * clusters remain — that guarantees we don't accidentally collapse a
+ * genuine two-speaker conversation into one if the durations are
+ * very unbalanced.
+ */
+export function dropTinyDiarizationClusters(
+  segments: DiarizationSegment[],
+  minDurationRatio: number = 0.03,
+  minSpeakers: number = 2
+): DiarizationSegment[] {
+  if (segments.length === 0) return [];
+
+  const totalDuration = segments.reduce((sum, s) => sum + (s.end - s.start), 0);
+  if (totalDuration <= 0) return segments;
+
+  const perSpeaker = new Map<number, number>();
+  for (const s of segments) {
+    perSpeaker.set(s.speaker, (perSpeaker.get(s.speaker) ?? 0) + (s.end - s.start));
+  }
+
+  // Sort speakers by total duration descending, keep at least `minSpeakers`
+  // of them no matter what.
+  const sorted = [...perSpeaker.entries()].sort((a, b) => b[1] - a[1]);
+  const keep = new Set<number>();
+  for (let i = 0; i < sorted.length; i++) {
+    const [speaker, dur] = sorted[i]!;
+    if (i < minSpeakers) {
+      keep.add(speaker);
+      continue;
+    }
+    if (dur / totalDuration >= minDurationRatio) keep.add(speaker);
+  }
+
+  if (keep.size === perSpeaker.size) return segments;
+
+  // For dropped segments, find the nearest surviving segment in time
+  // (by gap between segment edges) and inherit its speaker.
+  const survivors = segments.filter((s) => keep.has(s.speaker));
+  if (survivors.length === 0) return segments;
+
+  return segments.map((seg) => {
+    if (keep.has(seg.speaker)) return seg;
+    let best: { speaker: number; dist: number } | null = null;
+    for (const other of survivors) {
+      const dist =
+        seg.end <= other.start
+          ? other.start - seg.end
+          : other.end <= seg.start
+            ? seg.start - other.end
+            : 0; // overlapping, distance 0
+      if (best === null || dist < best.dist) best = { speaker: other.speaker, dist };
+    }
+    return { ...seg, speaker: best?.speaker ?? seg.speaker };
+  });
+}
+
+export function mergeTokensWithDiarization(
+  tokens: WhisperToken[],
+  diarSegments: DiarizationSegment[],
+  minRun: number = DEFAULT_MIN_RUN_TOKENS
+): SpeakerTaggedSegment[] {
+  if (tokens.length === 0) return [];
+
+  // Sort diarization segments by start so the linear scan stays cheap.
+  const diar = [...diarSegments].sort((a, b) => a.start - b.start);
+
+  const speakerAt = (timeSec: number): number | null => {
+    let best: { speaker: number; dist: number } | null = null;
+    for (const ds of diar) {
+      if (timeSec >= ds.start && timeSec < ds.end) return ds.speaker;
+      const dist =
+        timeSec < ds.start ? ds.start - timeSec : timeSec >= ds.end ? timeSec - ds.end : 0;
+      if (best === null || dist < best.dist) best = { speaker: ds.speaker, dist };
+    }
+    return best?.speaker ?? null;
+  };
+
+  // First pass: assign a raw speaker to each token. Punctuation/continuation
+  // tokens (no leading space) inherit the previous token's speaker so a
+  // mid-word boundary in the diarization timeline doesn't tear them off
+  // their parent word.
+  let lastSpeaker = 0;
+  const rawSpeakers = new Array<number>(tokens.length);
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!;
+    const startsNewWord = tok.text.startsWith(' ');
+    if (!startsNewWord && i > 0) {
+      rawSpeakers[i] = rawSpeakers[i - 1]!;
+      continue;
+    }
+    const mid = (tok.start + tok.end) / 2;
+    const speaker = speakerAt(mid) ?? lastSpeaker;
+    rawSpeakers[i] = speaker;
+    lastSpeaker = speaker;
+  }
+
+  // Second pass: kill short interior speaker runs surrounded by same-
+  // speaker neighbours. This is what stops sentences from being cut
+  // visually mid-clause every time the diarizer noisily flips.
+  const finalSpeakers = killShortSpeakerRuns(rawSpeakers, minRun);
+
+  // Third pass: build the output segments by merging consecutive
+  // same-speaker tokens.
+  const result: SpeakerTaggedSegment[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i]!;
+    const speaker = finalSpeakers[i]!;
+    const startsNewWord = tok.text.startsWith(' ');
+    const last = result[result.length - 1];
+
+    if (last && (!startsNewWord || last.speaker === speaker)) {
+      last.text = `${last.text}${tok.text}`;
+      last.end = tok.end;
+      continue;
+    }
+
+    result.push({
+      start: tok.start,
+      end: tok.end,
+      text: tok.text.replace(/^\s+/, ''),
+      speaker,
+    });
+  }
+
+  return result.map((seg) => ({ ...seg, text: seg.text.trim() }));
+}
+
 /**
  * Remap arbitrary cluster IDs to a contiguous range starting at 0, preserving
  * the order in which speakers first appear in the transcript. Returns the

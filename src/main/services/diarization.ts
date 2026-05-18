@@ -36,7 +36,12 @@ function getModelPaths(): ModelPaths {
   const baseDir = getModelsBaseDir();
   return {
     segmentation: path.join(baseDir, 'sherpa-onnx-pyannote-segmentation-3-0', 'model.onnx'),
-    embedding: path.join(baseDir, '3dspeaker_speech_campplus_sv_zh_en_16k-common_advanced.onnx'),
+    // 3D-Speaker ERes2Net is the embedding model used in the upstream
+    // sherpa-onnx diarization example and is tuned to work well with the
+    // pyannote segmentation 3.0 model at threshold 0.5. We tried campplus
+    // briefly but it requires a different threshold tune that we have not
+    // calibrated, so it inflated the cluster count badly on clean audio.
+    embedding: path.join(baseDir, '3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx'),
   };
 }
 
@@ -113,12 +118,21 @@ export function runDiarization(
       modelPaths,
       clustering: {
         numClusters: options.numClusters ?? -1,
-        // Cosine distance threshold: pairs of embeddings with distance
-        // BELOW this value are merged into the same speaker. Higher value
-        // = more aggressive merging = fewer clusters. 0.7 works well for
-        // common 2-4 speaker recordings; the previous 0.5 was over-
-        // segmenting heavily on English audio.
-        threshold: options.threshold ?? 0.7,
+        // sherpa-onnx FastClustering uses `threshold` as a cosine-DISTANCE
+        // cutoff on the agglomerative dendrogram (see fast-clustering.cc:
+        // distance[k] = 1 - cosine_similarity, then cutree_cdist(..., threshold)).
+        // So higher threshold → cut higher → MORE merges → FEWER clusters,
+        // and lower threshold → cut lower → MORE clusters.
+        // The upstream example value of 0.5 over-segmented heavily on our
+        // test recordings (~100+ clusters from a 2-speaker file). The
+        // embedding model we ship is trained on Chinese (eres2net zh-cn),
+        // so on Italian/English speech the inter-speaker distances run
+        // closer to 1 than to 0, which means we need a high cosine-distance
+        // cutoff to keep two-speaker conversations from blowing up.
+        // 0.9 was found to give roughly the right count on our test set;
+        // pair it with dropTinyDiarizationClusters() downstream to clean
+        // up any residual micro-clusters.
+        threshold: options.threshold ?? 0.9,
       },
     });
 
