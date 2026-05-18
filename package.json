@@ -26,9 +26,10 @@
     "build:main": "tsup",
     "electron": "electron dist-electron/main.cjs",
     "electron:dev": "concurrently -k \"vite\" \"npm run build:main -- --watch\" \"wait-on http://localhost:5173 && wait-on dist-electron/main.cjs && electron dist-electron/main.cjs\"",
-    "electron:build": "npm run setup:whisper:universal && npm run setup:diarization && npm run icons && npm run build && electron-builder",
-    "electron:build:mac": "npm run setup:whisper:universal && npm run setup:diarization && npm run icons && npm run build && electron-builder --mac",
-    "electron:build:dir": "npm run setup:whisper:universal && npm run setup:diarization && npm run icons && npm run build && electron-builder --dir",
+    "electron:build": "npm run setup:whisper:universal && npm run setup:diarization && npm run build:dmg-readme && npm run icons && npm run build && electron-builder",
+    "electron:build:mac": "npm run setup:whisper:universal && npm run setup:diarization && npm run build:dmg-readme && npm run icons && npm run build && electron-builder --mac",
+    "electron:build:dir": "npm run setup:whisper:universal && npm run setup:diarization && npm run build:dmg-readme && npm run icons && npm run build && electron-builder --dir",
+    "build:dmg-readme": "node scripts/build-dmg-readme.mjs",
     "icons": "npx tsx scripts/generate-icons.ts",
     "preview": "vite preview",
     "setup:whisper": "bash scripts/setup-whisper-cpp.sh",
@@ -163,17 +164,23 @@
       "title": "DGI-Whisper",
       "backgroundColor": "#f5f5f7",
       "window": {
-        "width": 540,
-        "height": 380
+        "width": 600,
+        "height": 440
       },
       "contents": [
         {
-          "x": 130,
-          "y": 220
+          "x": 300,
+          "y": 100,
+          "type": "file",
+          "path": "build/dmg-readme/README.pdf"
         },
         {
-          "x": 410,
-          "y": 220,
+          "x": 150,
+          "y": 260
+        },
+        {
+          "x": 450,
+          "y": 260,
           "type": "link",
           "path": "/Applications"
         }
