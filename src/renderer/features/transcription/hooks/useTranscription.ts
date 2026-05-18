@@ -34,6 +34,7 @@ function shouldRevealInFinderAfterSave(): boolean {
 export interface DiarizationState {
   segments: TranscribedSegment[];
   speakerCount: number;
+  labels?: Record<number, string>;
 }
 
 export interface UseTranscriptionReturn {

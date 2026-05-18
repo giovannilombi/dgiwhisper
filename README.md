@@ -36,7 +36,7 @@ Local only, privacy-first AI transcription.
 
 ## 📋 Requirements
 
-- **macOS on Apple Silicon** (M1/M2/M3/M4). The DMG is currently published as `arm64` only — Intel Macs are not officially supported.
+- **macOS** 10.15 (Catalina) or later. The DMG is a universal binary (arm64 + x64), so it runs natively on both Apple Silicon and Intel Macs.
 - **FFmpeg** (Required for audio processing)
 - ~500MB disk space (for whisper.cpp and models; +45MB if diarization is enabled)
 

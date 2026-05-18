@@ -11,6 +11,7 @@ import type { Theme } from '../hooks';
 export interface DiarizationContextState {
   segments: TranscribedSegment[];
   speakerCount: number;
+  labels?: Record<number, string>;
 }
 
 export interface ThemeContextValue {
@@ -61,6 +62,10 @@ export interface TranscriptionActionsContextValue {
   selectQueueItem: (id: string) => void;
   dismissQueueResumePrompt: () => void;
   resumePersistedQueue: () => Promise<void>;
+  updateCurrentDiarization: (state: {
+    segments: TranscribedSegment[];
+    labels: Record<number, string>;
+  }) => void;
 }
 
 export interface TranscriptionContextValue

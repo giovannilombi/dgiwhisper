@@ -663,7 +663,9 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
 
         if (onHistoryAdd) {
           const historyItem: HistoryItem = {
-            id: crypto.randomUUID(),
+            // Share the queue item id so post-completion edits to the
+            // diarized transcript can be located in history by id.
+            id: item.id,
             fileName: item.file.name,
             filePath: item.file.path,
             model: settings.model,

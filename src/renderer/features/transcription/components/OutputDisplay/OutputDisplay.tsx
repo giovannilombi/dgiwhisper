@@ -18,6 +18,7 @@ export interface OutputDisplayProps {
   selectedFile?: SelectedFile | null;
   diarizationSegments?: TranscribedSegment[] | null;
   speakerCount?: number;
+  diarizationLabels?: Record<number, string>;
   onDiarizationStateChange?: (state: {
     segments: TranscribedSegment[];
     labels: Record<number, string>;
@@ -68,6 +69,7 @@ function OutputDisplay({
   selectedFile = null,
   diarizationSegments = null,
   speakerCount,
+  diarizationLabels,
   onDiarizationStateChange,
 }: OutputDisplayProps): React.JSX.Element {
   const hasDiarization =
@@ -78,7 +80,7 @@ function OutputDisplay({
   const diarizedWorkingRef = useRef<{
     segments: TranscribedSegment[];
     labels: Record<number, string>;
-  }>({ segments: diarizationSegments ?? [], labels: {} });
+  }>({ segments: diarizationSegments ?? [], labels: diarizationLabels ?? {} });
 
   const handleSpeakerLabelsChange = useCallback(
     (labels: Record<number, string>) => {
@@ -312,6 +314,7 @@ function OutputDisplay({
         <SpeakerLabeledTranscript
           segments={diarizationSegments!}
           speakerCount={speakerCount!}
+          initialLabels={diarizationLabels}
           onLabelsChange={handleSpeakerLabelsChange}
           onSegmentsChange={handleDiarizedSegmentsChange}
         />

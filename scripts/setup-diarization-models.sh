@@ -47,3 +47,21 @@ fi
 echo ""
 echo "📦 Models installed:"
 ls -lh "$MODELS_DIR/$SEGMENTATION_DIR_NAME/$SEGMENTATION_MODEL_FILE" "$MODELS_DIR/$EMBEDDING_MODEL_FILE"
+
+# 3) Cross-arch native binaries for sherpa-onnx so the macOS DMG can be built
+#    as a universal binary. The packages are platform-tagged, so the host
+#    arch will install its native pair automatically; we force-install the
+#    sibling sherpa-onnx-darwin-x64 here.
+SHERPA_X64_DIR="$PROJECT_DIR/node_modules/sherpa-onnx-darwin-x64"
+if [ ! -f "$SHERPA_X64_DIR/sherpa-onnx.node" ]; then
+    echo ""
+    echo "⬇️  Force-installing sherpa-onnx-darwin-x64 for universal build..."
+    (cd "$PROJECT_DIR" && npm install --no-save --force --no-audit --no-fund sherpa-onnx-darwin-x64@1.13.2 >/dev/null 2>&1)
+    if [ ! -f "$SHERPA_X64_DIR/sherpa-onnx.node" ]; then
+        echo "❌ Failed to install sherpa-onnx-darwin-x64"
+        exit 1
+    fi
+    echo "✅ sherpa-onnx-darwin-x64 ready."
+else
+    echo "✅ sherpa-onnx-darwin-x64 already present, skipping."
+fi

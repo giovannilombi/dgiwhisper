@@ -3,7 +3,17 @@ import { useTranscription, useBatchQueue, useQueueSelection } from '../features/
 import { useHistory } from '../features/history';
 import { useTheme, useCopyToClipboard, useElectronMenu } from '../hooks';
 import { selectAndProcessFiles } from '../utils';
-import type { HistoryItem, SelectedFile } from '../types';
+import type { HistoryItem, SelectedFile, TranscribedSegment } from '../types';
+
+function parsePersistedLabels(labels?: Record<string, string>): Record<number, string> | undefined {
+  if (!labels) return undefined;
+  const out: Record<number, string> = {};
+  for (const [key, value] of Object.entries(labels)) {
+    const n = Number.parseInt(key, 10);
+    if (!Number.isNaN(n)) out[n] = value;
+  }
+  return out;
+}
 import {
   ThemeContext,
   HistoryContext,
@@ -34,6 +44,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     addHistoryItem,
     clearHistory,
     removeHistoryItem,
+    updateHistoryItem,
   } = useHistory();
 
   const {
@@ -88,12 +99,36 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setSelectedFile({ name: item.fileName, path: item.filePath });
       setDiarization(
         item.segments && item.speakerCount !== undefined
-          ? { segments: item.segments, speakerCount: item.speakerCount }
+          ? {
+              segments: item.segments,
+              speakerCount: item.speakerCount,
+              labels: parsePersistedLabels(item.speakerLabels),
+            }
           : null
       );
+      setSelectedQueueItemId(item.id);
       setShowHistory(false);
     },
     [setTranscription, setSelectedFile, setShowHistory, setDiarization]
+  );
+
+  const updateCurrentDiarization = useCallback(
+    (state: { segments: TranscribedSegment[]; labels: Record<number, string> }): void => {
+      if (!selectedQueueItemId) return;
+      const speakerIds = new Set<number>();
+      state.segments.forEach((s) => speakerIds.add(s.speaker ?? 0));
+      const speakerCount = speakerIds.size;
+      const stringLabels: Record<string, string> = {};
+      for (const [k, v] of Object.entries(state.labels)) {
+        stringLabels[k] = v;
+      }
+      updateHistoryItem(selectedQueueItemId, {
+        segments: state.segments,
+        speakerCount,
+        speakerLabels: stringLabels,
+      });
+    },
+    [selectedQueueItemId, updateHistoryItem]
   );
 
   const onCopy = useCallback(async (): Promise<void> => {
@@ -147,7 +182,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     setDiarization(null);
   }, [clearCompleted, setTranscription, setSelectedFile, setDiarization]);
 
-  const { selectQueueItem } = useQueueSelection(
+  const { selectQueueItem: baseSelectQueueItem } = useQueueSelection(
     queue,
     getCompletedTranscription,
     setTranscription,
@@ -155,6 +190,23 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     setSelectedQueueItemId,
     getCompletedDiarization,
     setDiarization
+  );
+
+  const selectQueueItem = useCallback(
+    (id: string): void => {
+      baseSelectQueueItem(id);
+      // Prefer history's diarization state — it reflects user edits made
+      // after the initial transcription completed.
+      const histItem = history.find((h) => h.id === id);
+      if (histItem?.segments && histItem.speakerCount !== undefined) {
+        setDiarization({
+          segments: histItem.segments,
+          speakerCount: histItem.speakerCount,
+          labels: parsePersistedLabels(histItem.speakerLabels),
+        });
+      }
+    },
+    [baseSelectQueueItem, history, setDiarization]
   );
 
   useElectronMenu({
@@ -267,6 +319,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       selectQueueItem,
       dismissQueueResumePrompt,
       resumePersistedQueue,
+      updateCurrentDiarization,
     }),
     [
       setSelectedFile,
@@ -283,6 +336,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       selectQueueItem,
       dismissQueueResumePrompt,
       resumePersistedQueue,
+      updateCurrentDiarization,
     ]
   );
 

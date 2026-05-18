@@ -44,11 +44,24 @@ export function isDiarizationAvailable(): boolean {
   return fs.existsSync(paths.segmentation) && fs.existsSync(paths.embedding);
 }
 
+export class DiarizationAbortedError extends Error {
+  constructor() {
+    super('Diarization aborted');
+    this.name = 'DiarizationAbortedError';
+  }
+}
+
 export function runDiarization(
   wavPath: string,
-  options: DiarizationOptions = {}
+  options: DiarizationOptions = {},
+  signal?: AbortSignal
 ): Promise<DiarizationSegment[]> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DiarizationAbortedError());
+      return;
+    }
+
     const modelPaths = getModelPaths();
 
     if (!fs.existsSync(modelPaths.segmentation) || !fs.existsSync(modelPaths.embedding)) {
@@ -70,6 +83,7 @@ export function runDiarization(
       return;
     }
 
+    let aborted = false;
     const worker = new Worker(workerPath, {
       workerData: {
         wavPath,
@@ -81,10 +95,19 @@ export function runDiarization(
       },
     });
 
+    const onAbort = () => {
+      aborted = true;
+      worker.terminate().catch(() => {});
+    };
+    if (signal) {
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
+
     let settled = false;
     const finish = (fn: () => void) => {
       if (settled) return;
       settled = true;
+      signal?.removeEventListener('abort', onAbort);
       fn();
       worker.terminate().catch(() => {});
     };
@@ -105,7 +128,10 @@ export function runDiarization(
     });
 
     worker.on('exit', (code) => {
-      if (code !== 0 && !settled) {
+      if (settled) return;
+      if (aborted) {
+        finish(() => reject(new DiarizationAbortedError()));
+      } else if (code !== 0) {
         finish(() => reject(new Error(`Diarization worker exited with code ${code}`)));
       }
     });

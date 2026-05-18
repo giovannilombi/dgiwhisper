@@ -7,6 +7,7 @@ import './SpeakerLabeledTranscript.css';
 export interface SpeakerLabeledTranscriptProps {
   segments: TranscribedSegment[];
   speakerCount: number;
+  initialLabels?: Record<number, string>;
   onLabelsChange?: (labels: Record<number, string>) => void;
   onSegmentsChange?: (segments: TranscribedSegment[]) => void;
 }
@@ -58,23 +59,25 @@ function defaultLabelFor(speakerId: number): string {
 function SpeakerLabeledTranscript({
   segments,
   speakerCount,
+  initialLabels,
   onLabelsChange,
   onSegmentsChange,
 }: SpeakerLabeledTranscriptProps): React.JSX.Element {
   const [workingSegments, setWorkingSegments] = useState<TranscribedSegment[]>(segments);
-  const [labels, setLabels] = useState<Record<number, string>>({});
+  const [labels, setLabels] = useState<Record<number, string>>(initialLabels ?? {});
   const [editingSpeaker, setEditingSpeaker] = useState<number | null>(null);
   const [editingValue, setEditingValue] = useState<string>('');
   const [openMergeFor, setOpenMergeFor] = useState<number | null>(null);
   const editInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Reset internal state whenever the input segments change (new transcription)
+  // Reset internal state whenever the input segments change (new transcription
+  // or a different history item was selected).
   useEffect(() => {
     setWorkingSegments(segments);
-    setLabels({});
+    setLabels(initialLabels ?? {});
     setEditingSpeaker(null);
     setOpenMergeFor(null);
-  }, [segments]);
+  }, [segments, initialLabels]);
 
   useEffect(() => {
     if (editingSpeaker !== null && editInputRef.current) {

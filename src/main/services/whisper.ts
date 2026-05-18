@@ -431,6 +431,7 @@ export function transcribe(
   const { filePath, model, language, outputFormat, diarize } = options;
   let proc: ChildProcess | null = null;
   let cancelled = false;
+  const diarizationAbort = new AbortController();
 
   const promise = new Promise<TranscriptionResult>((resolve, reject) => {
     const run = async () => {
@@ -608,14 +609,25 @@ export function transcribe(
         if (diarize && vtt && audioPath && fs.existsSync(audioPath)) {
           onProgress?.({ percent: 92, status: 'Identifying speakers...' });
           try {
-            const diarSegs = await runDiarization(audioPath);
+            const diarSegs = await runDiarization(audioPath, {}, diarizationAbort.signal);
             const whisperSegs = parseVtt(vtt);
             const tagged = assignSpeakers(whisperSegs, diarSegs);
             const { segments, speakerCount } = remapSpeakers(tagged);
             diarizationFields = { segments, speakers: speakerCount };
           } catch (err) {
+            if (cancelled) {
+              cleanupFiles();
+              resolve({ success: true, cancelled: true, text: '' });
+              return;
+            }
             console.error('Diarization failed; returning transcript without speakers:', err);
           }
+        }
+
+        if (cancelled) {
+          cleanupFiles();
+          resolve({ success: true, cancelled: true, text: '' });
+          return;
         }
 
         cleanupFiles();
@@ -638,10 +650,11 @@ export function transcribe(
   }) as Promise<TranscriptionResult> & { cancel?: () => void };
 
   promise.cancel = () => {
+    cancelled = true;
     if (proc) {
-      cancelled = true;
       proc.kill();
     }
+    diarizationAbort.abort();
   };
 
   return promise;

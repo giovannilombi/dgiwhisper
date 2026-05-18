@@ -37,6 +37,7 @@ interface UseHistoryReturn {
   clearHistory: () => void;
   selectHistoryItem: (item: HistoryItem, onSelect: (item: HistoryItem) => void) => void;
   removeHistoryItem: (itemId: string) => void;
+  updateHistoryItem: (itemId: string, patch: Partial<HistoryItem>) => void;
 }
 
 export function useHistory(): UseHistoryReturn {
@@ -68,6 +69,23 @@ export function useHistory(): UseHistoryReturn {
     });
   }, []);
 
+  const updateHistoryItem = useCallback((itemId: string, patch: Partial<HistoryItem>): void => {
+    setHistory((prev) => {
+      let changed = false;
+      const updated = prev.map((item) => {
+        if (item.id === itemId) {
+          changed = true;
+          return { ...item, ...patch };
+        }
+        return item;
+      });
+      if (changed) {
+        saveHistoryToStorage(updated);
+      }
+      return changed ? updated : prev;
+    });
+  }, []);
+
   const selectHistoryItem = useCallback(
     (item: HistoryItem, onSelect: (item: HistoryItem) => void): void => {
       onSelect(item);
@@ -85,5 +103,6 @@ export function useHistory(): UseHistoryReturn {
     clearHistory,
     removeHistoryItem,
     selectHistoryItem,
+    updateHistoryItem,
   };
 }
