@@ -37,6 +37,7 @@ export type OutputFormat = 'vtt' | 'srt' | 'txt' | 'json' | 'docx' | 'pdf' | 'md
 export interface TranscriptionSettings {
   model: WhisperModelName;
   language: LanguageCode;
+  diarize?: boolean;
 }
 
 export type QualityLevel = 1 | 2 | 3 | 4 | 5;
@@ -76,12 +77,43 @@ export interface TranscriptionOptions {
   model: WhisperModelName;
   language: LanguageCode;
   outputFormat: OutputFormat;
+  diarize?: boolean;
+}
+
+export interface TranscribedSegment {
+  start: number;
+  end: number;
+  text: string;
+  speaker?: number;
 }
 
 export interface TranscriptionResult {
   success: boolean;
   text?: string;
   cancelled?: boolean;
+  error?: string;
+  segments?: TranscribedSegment[];
+  speakers?: number;
+}
+
+export interface DiarizationSegment {
+  start: number;
+  end: number;
+  speaker: number;
+}
+
+export interface DiarizationOptions {
+  numClusters?: number;
+  threshold?: number;
+}
+
+export interface DiarizationProgress {
+  percent: number;
+}
+
+export interface DiarizationResult {
+  success: boolean;
+  segments?: DiarizationSegment[];
   error?: string;
 }
 
@@ -109,6 +141,9 @@ export interface HistoryItem {
   duration: number;
   preview: string;
   fullText: string;
+  segments?: TranscribedSegment[];
+  speakerCount?: number;
+  speakerLabels?: Record<string, string>;
 }
 
 export interface SaveFileOptions {

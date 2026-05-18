@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     main: 'src/main/index.ts',
     preload: 'src/preload/index.ts',
+    'diarization-worker': 'src/main/workers/diarization.ts',
   },
   outDir: 'dist-electron',
   format: ['cjs'],

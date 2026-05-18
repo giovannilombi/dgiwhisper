@@ -8,6 +8,7 @@ export * from './TranscriptionToolbar';
 export * from './TranscriptionSearch';
 export * from './TranscriptionContent';
 export * from './TranscriptMediaPlayer';
+export * from './SpeakerLabeledTranscript';
 
 export { FileQueue } from './FileQueue';
 export type { FileQueueProps } from './FileQueue';

@@ -1,19 +1,27 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import './OutputDisplay.css';
-import type { OutputFormat, SelectedFile } from '../../../../types';
+import type { OutputFormat, SelectedFile, TranscribedSegment } from '../../../../types';
 
 import { TranscriptionToolbar } from '../TranscriptionToolbar';
 import { TranscriptionSearch } from '../TranscriptionSearch';
 import { TranscriptionContent } from '../TranscriptionContent';
 import { TranscriptMediaPlayer } from '../TranscriptMediaPlayer';
+import { SpeakerLabeledTranscript } from '../SpeakerLabeledTranscript';
 import { parseTranscriptSegments, type TranscriptSegment } from '../../utils/transcriptSegments';
+import { formatDiarizedAsTxt, formatDiarizedAsMarkdown } from '../../utils/diarizedExport';
 
 export interface OutputDisplayProps {
   text: string;
-  onSave: (format: OutputFormat) => void;
+  onSave: (format: OutputFormat, contentOverride?: string) => void;
   onCopy: () => void;
   copySuccess: boolean;
   selectedFile?: SelectedFile | null;
+  diarizationSegments?: TranscribedSegment[] | null;
+  speakerCount?: number;
+  onDiarizationStateChange?: (state: {
+    segments: TranscribedSegment[];
+    labels: Record<number, string>;
+  }) => void;
 }
 
 interface SearchMatch {
@@ -58,7 +66,51 @@ function OutputDisplay({
   onCopy,
   copySuccess,
   selectedFile = null,
+  diarizationSegments = null,
+  speakerCount,
+  onDiarizationStateChange,
 }: OutputDisplayProps): React.JSX.Element {
+  const hasDiarization =
+    Array.isArray(diarizationSegments) &&
+    diarizationSegments.length > 0 &&
+    typeof speakerCount === 'number';
+
+  const diarizedWorkingRef = useRef<{
+    segments: TranscribedSegment[];
+    labels: Record<number, string>;
+  }>({ segments: diarizationSegments ?? [], labels: {} });
+
+  const handleSpeakerLabelsChange = useCallback(
+    (labels: Record<number, string>) => {
+      diarizedWorkingRef.current = { ...diarizedWorkingRef.current, labels };
+      onDiarizationStateChange?.(diarizedWorkingRef.current);
+    },
+    [onDiarizationStateChange]
+  );
+
+  const handleDiarizedSegmentsChange = useCallback(
+    (segments: TranscribedSegment[]) => {
+      diarizedWorkingRef.current = { ...diarizedWorkingRef.current, segments };
+      onDiarizationStateChange?.(diarizedWorkingRef.current);
+    },
+    [onDiarizationStateChange]
+  );
+
+  const handleSaveInterceptor = useCallback(
+    (format: OutputFormat) => {
+      if (hasDiarization && (format === 'txt' || format === 'md')) {
+        const { segments, labels } = diarizedWorkingRef.current;
+        const content =
+          format === 'txt'
+            ? formatDiarizedAsTxt(segments, labels)
+            : formatDiarizedAsMarkdown(segments, labels);
+        onSave(format, content);
+      } else {
+        onSave(format);
+      }
+    },
+    [hasDiarization, onSave]
+  );
   const [showSearch, setShowSearch] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [currentMatchIndex, setCurrentMatchIndex] = useState<number>(0);
@@ -233,18 +285,18 @@ function OutputDisplay({
       <TranscriptionToolbar
         hasText={hasText}
         onCopy={onCopy}
-        onSave={onSave}
+        onSave={handleSaveInterceptor}
         copySuccess={copySuccess}
         wordCount={wordCount}
         charCount={charCount}
         onToggleSearch={handleToggleSearch}
         isSearchActive={showSearch}
-        showMediaToggle={canUseMediaMode}
+        showMediaToggle={canUseMediaMode && !hasDiarization}
         isMediaPlayerEnabled={isMediaPlayerEnabled}
         onToggleMediaPlayer={handleToggleMediaPlayer}
       />
 
-      {showSearch && hasText && (
+      {showSearch && hasText && !hasDiarization && (
         <TranscriptionSearch
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -256,7 +308,16 @@ function OutputDisplay({
         />
       )}
 
-      {isMediaModeEnabled && selectedFile && (
+      {hasDiarization && (
+        <SpeakerLabeledTranscript
+          segments={diarizationSegments!}
+          speakerCount={speakerCount!}
+          onLabelsChange={handleSpeakerLabelsChange}
+          onSegmentsChange={handleDiarizedSegmentsChange}
+        />
+      )}
+
+      {!hasDiarization && isMediaModeEnabled && selectedFile && (
         <TranscriptMediaPlayer
           selectedFile={selectedFile}
           onMediaElementChange={handleMediaElementChange}
@@ -264,17 +325,19 @@ function OutputDisplay({
         />
       )}
 
-      <TranscriptionContent
-        hasText={hasText}
-        text={text}
-        highlightedText={highlightedText}
-        currentMatchIndex={currentMatchIndex}
-        matchCount={matches.length}
-        segments={isMediaModeEnabled ? segments : []}
-        activeSegmentIndex={activeSegmentIndex}
-        searchQuery={searchQuery}
-        onSegmentClick={handleSegmentClick}
-      />
+      {!hasDiarization && (
+        <TranscriptionContent
+          hasText={hasText}
+          text={text}
+          highlightedText={highlightedText}
+          currentMatchIndex={currentMatchIndex}
+          matchCount={matches.length}
+          segments={isMediaModeEnabled ? segments : []}
+          activeSegmentIndex={activeSegmentIndex}
+          searchQuery={searchQuery}
+          onSegmentClick={handleSegmentClick}
+        />
+      )}
     </div>
   );
 }

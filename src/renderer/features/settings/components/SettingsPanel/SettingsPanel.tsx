@@ -23,6 +23,7 @@ import { GpuStatus } from '../GpuStatus';
 import { ModelSelector } from '../ModelSelector';
 import { ModelDetails } from '../ModelDetails';
 import { LanguageSelector } from '../LanguageSelector';
+import { DiarizationToggle } from '../DiarizationToggle';
 
 export interface SettingsPanelProps {
   settings: TranscriptionSettings;
@@ -149,6 +150,12 @@ function SettingsPanel({
       <h3>Settings</h3>
 
       <GpuStatus gpuInfo={gpuInfo} />
+
+      <DiarizationToggle
+        enabled={settings.diarize === true}
+        disabled={disabled}
+        onChange={(diarize) => onChange({ ...settings, diarize })}
+      />
 
       <ModelSelector
         models={models}

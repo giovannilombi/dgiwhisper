@@ -5,6 +5,7 @@ import type {
   ModelDownloadProgress,
   TranscriptionProgress,
   UpdateStatus,
+  DiarizationOptions,
 } from '../shared/types';
 
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -33,6 +34,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('transcribe:progress', (_event, data) => callback(data));
     return () => ipcRenderer.removeAllListeners('transcribe:progress');
   },
+
+  isDiarizationAvailable: () => ipcRenderer.invoke('diarization:isAvailable'),
+  runDiarization: (wavPath: string, options?: DiarizationOptions) =>
+    ipcRenderer.invoke('diarization:run', wavPath, options),
 
   getAppInfo: () => ipcRenderer.invoke('app:getInfo'),
   getMemoryUsage: () => ipcRenderer.invoke('app:getMemoryUsage'),

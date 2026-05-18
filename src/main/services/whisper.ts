@@ -14,9 +14,12 @@ import type {
   ModelInfo,
   GpuInfo,
   QualityLevel,
+  TranscribedSegment,
 } from '../../shared/types';
 import { sanitizePath } from '../../shared/utils';
 import { detectGpuStatus } from './gpu-detector';
+import { runDiarization } from './diarization';
+import { parseVtt, assignSpeakers, remapSpeakers } from '../utils/diarization-merge';
 
 interface WhisperModelInfo {
   size: string;
@@ -425,7 +428,7 @@ export function transcribe(
   options: TranscriptionOptions,
   onProgress?: (progress: TranscriptionProgress) => void
 ): Promise<TranscriptionResult> & { cancel?: () => void } {
-  const { filePath, model, language, outputFormat } = options;
+  const { filePath, model, language, outputFormat, diarize } = options;
   let proc: ChildProcess | null = null;
   let cancelled = false;
 
@@ -463,7 +466,10 @@ export function transcribe(
       let audioPath = filePath;
       let tempWavPath: string | null = null;
 
-      if (ext !== '.wav') {
+      // Diarization needs a guaranteed 16 kHz mono wav, so we force-convert
+      // even when the input is already .wav (it may be 44.1 kHz / stereo).
+      const needsWavConversion = ext !== '.wav' || diarize === true;
+      if (needsWavConversion) {
         tempWavPath = path.join(app.getPath('temp'), `whisperdesk_${crypto.randomUUID()}.wav`);
         try {
           audioPath = await convertToWav(filePath, tempWavPath);
@@ -555,60 +561,71 @@ export function transcribe(
         }
       });
 
-      child.on('close', (code: number) => {
+      child.on('close', async (code: number) => {
         if (cancelled) {
           cleanupFiles();
           resolve({ success: true, cancelled: true, text: '' });
           return;
         }
 
-        if (code === 0) {
-          const txtPath = outputBase + '.txt';
-          const vttPath = outputBase + '.vtt';
-
-          let text = stdout.trim();
-
-          if (fs.existsSync(txtPath)) {
-            if (!text) {
-              text = fs.readFileSync(txtPath, 'utf-8').trim();
-            }
-          }
-
-          let vtt: string | null = null;
-          if (fs.existsSync(vttPath)) {
-            vtt = fs.readFileSync(vttPath, 'utf-8');
-          }
-
-          // Clean up files after reading
-          cleanupFiles();
-
-          if (!text && !vtt) {
-            console.error('Transcription failed: No output generated.', {
-              txtPath: sanitizePath(txtPath),
-              vttPath: sanitizePath(vttPath),
-              stdoutLength: stdout.length,
-            });
-            reject(
-              new Error(
-                'Transcription produced no output. The audio file might be empty, silent, or contain no valid audio stream.'
-              )
-            );
-            return;
-          }
-
-          onProgress?.({ percent: 100, status: 'Complete!' });
-
-          // Return VTT format if requested, otherwise text
-          resolve({
-            success: true,
-            text: outputFormat === 'vtt' && vtt ? vtt : text,
-          });
-        } else {
+        if (code !== 0) {
           cleanupFiles();
           console.error('Transcription process exited with code', code);
           console.error('Stderr:', stderr);
           reject(new Error(stderr || 'Transcription failed'));
+          return;
         }
+
+        const txtPath = outputBase + '.txt';
+        const vttPath = outputBase + '.vtt';
+
+        let text = stdout.trim();
+        if (fs.existsSync(txtPath) && !text) {
+          text = fs.readFileSync(txtPath, 'utf-8').trim();
+        }
+
+        let vtt: string | null = null;
+        if (fs.existsSync(vttPath)) {
+          vtt = fs.readFileSync(vttPath, 'utf-8');
+        }
+
+        if (!text && !vtt) {
+          cleanupFiles();
+          console.error('Transcription failed: No output generated.', {
+            txtPath: sanitizePath(txtPath),
+            vttPath: sanitizePath(vttPath),
+            stdoutLength: stdout.length,
+          });
+          reject(
+            new Error(
+              'Transcription produced no output. The audio file might be empty, silent, or contain no valid audio stream.'
+            )
+          );
+          return;
+        }
+
+        let diarizationFields: { segments?: TranscribedSegment[]; speakers?: number } = {};
+        if (diarize && vtt && audioPath && fs.existsSync(audioPath)) {
+          onProgress?.({ percent: 92, status: 'Identifying speakers...' });
+          try {
+            const diarSegs = await runDiarization(audioPath);
+            const whisperSegs = parseVtt(vtt);
+            const tagged = assignSpeakers(whisperSegs, diarSegs);
+            const { segments, speakerCount } = remapSpeakers(tagged);
+            diarizationFields = { segments, speakers: speakerCount };
+          } catch (err) {
+            console.error('Diarization failed; returning transcript without speakers:', err);
+          }
+        }
+
+        cleanupFiles();
+        onProgress?.({ percent: 100, status: 'Complete!' });
+
+        resolve({
+          success: true,
+          text: outputFormat === 'vtt' && vtt ? vtt : text,
+          ...diarizationFields,
+        });
       });
 
       child.on('error', (err: Error) => {

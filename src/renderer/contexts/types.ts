@@ -4,8 +4,14 @@ import type {
   TranscriptionSettings,
   OutputFormat,
   QueueItem,
+  TranscribedSegment,
 } from '../types';
 import type { Theme } from '../hooks';
+
+export interface DiarizationContextState {
+  segments: TranscribedSegment[];
+  speakerCount: number;
+}
 
 export interface ThemeContextValue {
   theme: Theme;
@@ -28,6 +34,7 @@ export interface TranscriptionStateContextValue {
   settings: TranscriptionSettings;
   isTranscribing: boolean;
   transcription: string;
+  diarization: DiarizationContextState | null;
   error: string | null;
   modelDownloaded: boolean;
   duplicateFilesSkipped: number;
@@ -46,7 +53,7 @@ export interface TranscriptionActionsContextValue {
   handleTranscribe: () => Promise<void>;
   handleRetryFailed: () => Promise<void>;
   handleCancel: () => Promise<void>;
-  handleSave: (format?: OutputFormat) => Promise<void>;
+  handleSave: (format?: OutputFormat, contentOverride?: string) => Promise<void>;
   handleCopy: () => Promise<void>;
   handleFilesSelect: (files: SelectedFile[]) => void;
   removeFromQueue: (id: string) => void;

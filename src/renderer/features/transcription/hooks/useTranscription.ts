@@ -1,5 +1,10 @@
 import { useState, useCallback } from 'react';
-import type { SelectedFile, TranscriptionSettings, OutputFormat } from '../../../types';
+import type {
+  SelectedFile,
+  TranscriptionSettings,
+  OutputFormat,
+  TranscribedSegment,
+} from '../../../types';
 import { saveFile, showItemInFolder } from '../../../services/electronAPI';
 import { logger } from '../../../services/logger';
 import { sanitizePath } from '../../../../shared/utils';
@@ -26,10 +31,16 @@ function shouldRevealInFinderAfterSave(): boolean {
   }
 }
 
+export interface DiarizationState {
+  segments: TranscribedSegment[];
+  speakerCount: number;
+}
+
 export interface UseTranscriptionReturn {
   selectedFile: SelectedFile | null;
   settings: TranscriptionSettings;
   transcription: string;
+  diarization: DiarizationState | null;
   error: string | null;
   modelDownloaded: boolean;
 
@@ -37,9 +48,10 @@ export interface UseTranscriptionReturn {
   setSettings: (settings: TranscriptionSettings) => void;
   setModelDownloaded: (downloaded: boolean) => void;
   setTranscription: (text: string) => void;
+  setDiarization: (state: DiarizationState | null) => void;
   setError: (error: string | null) => void;
 
-  handleSave: (format?: OutputFormat) => Promise<void>;
+  handleSave: (format?: OutputFormat, contentOverride?: string) => Promise<void>;
   handleCopy: (copyToClipboard: (text: string) => Promise<boolean>) => Promise<boolean>;
   clearError: () => void;
 }
@@ -51,17 +63,21 @@ export function useTranscription(): UseTranscriptionReturn {
     language: 'auto',
   });
   const [transcription, setTranscription] = useState<string>('');
+  const [diarization, setDiarization] = useState<DiarizationState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [modelDownloaded, setModelDownloaded] = useState<boolean>(true);
 
   const handleSave = useCallback(
-    async (format: OutputFormat = 'vtt'): Promise<void> => {
-      if (!transcription) return;
+    async (format: OutputFormat = 'vtt', contentOverride?: string): Promise<void> => {
+      if (!transcription && !contentOverride) return;
 
       const fileName = selectedFile?.name?.replace(/\.[^/.]+$/, '') || 'transcription';
-      let content: string = transcription;
+      let content: string = contentOverride ?? transcription;
 
-      if (format === 'txt') {
+      if (contentOverride !== undefined) {
+        // Caller already produced the final content (e.g. diarized export).
+        // Skip the format-specific transformations below.
+      } else if (format === 'txt') {
         content = transcription
           .split('\n')
           .filter((line) => !line.startsWith('WEBVTT') && !line.match(/^\d{2}:\d{2}/))
@@ -139,6 +155,7 @@ export function useTranscription(): UseTranscriptionReturn {
     selectedFile,
     settings,
     transcription,
+    diarization,
     error,
     modelDownloaded,
 
@@ -146,6 +163,7 @@ export function useTranscription(): UseTranscriptionReturn {
     setSettings,
     setModelDownloaded,
     setTranscription,
+    setDiarization,
     setError,
     handleSave,
     handleCopy,

@@ -40,12 +40,14 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     selectedFile,
     settings,
     transcription,
+    diarization,
     error,
     modelDownloaded,
     setSelectedFile,
     setSettings,
     setModelDownloaded,
     setTranscription,
+    setDiarization,
     handleSave,
     handleCopy,
   } = useTranscription();
@@ -68,13 +70,15 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     retryFailed,
     cancelProcessing,
     getCompletedTranscription,
+    getCompletedDiarization,
   } = useBatchQueue({
     settings,
     onHistoryAdd: addHistoryItem,
-    onFirstComplete: (id, text, file) => {
+    onFirstComplete: (id, text, file, diarizationState) => {
       setSelectedQueueItemId(id);
       setTranscription(text);
       setSelectedFile(file);
+      setDiarization(diarizationState ?? null);
     },
   });
 
@@ -82,9 +86,14 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     (item: HistoryItem): void => {
       setTranscription(item.fullText);
       setSelectedFile({ name: item.fileName, path: item.filePath });
+      setDiarization(
+        item.segments && item.speakerCount !== undefined
+          ? { segments: item.segments, speakerCount: item.speakerCount }
+          : null
+      );
       setShowHistory(false);
     },
-    [setTranscription, setSelectedFile, setShowHistory]
+    [setTranscription, setSelectedFile, setShowHistory, setDiarization]
   );
 
   const onCopy = useCallback(async (): Promise<void> => {
@@ -124,9 +133,10 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
         setSelectedQueueItemId(null);
         setTranscription('');
         setSelectedFile(null);
+        setDiarization(null);
       }
     },
-    [removeFile, selectedQueueItemId, setTranscription, setSelectedFile]
+    [removeFile, selectedQueueItemId, setTranscription, setSelectedFile, setDiarization]
   );
 
   const clearCompletedFromQueue = useCallback((): void => {
@@ -134,14 +144,17 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     setSelectedQueueItemId(null);
     setTranscription('');
     setSelectedFile(null);
-  }, [clearCompleted, setTranscription, setSelectedFile]);
+    setDiarization(null);
+  }, [clearCompleted, setTranscription, setSelectedFile, setDiarization]);
 
   const { selectQueueItem } = useQueueSelection(
     queue,
     getCompletedTranscription,
     setTranscription,
     setSelectedFile,
-    setSelectedQueueItemId
+    setSelectedQueueItemId,
+    getCompletedDiarization,
+    setDiarization
   );
 
   useElectronMenu({
@@ -209,6 +222,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       settings,
       isTranscribing: isProcessing,
       transcription,
+      diarization,
       error,
       modelDownloaded,
       duplicateFilesSkipped,
@@ -224,6 +238,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       settings,
       isProcessing,
       transcription,
+      diarization,
       error,
       modelDownloaded,
       duplicateFilesSkipped,

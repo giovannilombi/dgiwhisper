@@ -6,6 +6,7 @@ import type {
   QueueItemStatus,
   HistoryItem,
 } from '../../../types';
+import type { DiarizationState } from './useTranscription';
 import {
   startTranscription,
   cancelTranscription,
@@ -19,7 +20,12 @@ import { toUserFriendlyTranscriptionError } from '../utils/errorMessages';
 interface UseBatchQueueOptions {
   settings: TranscriptionSettings;
   onHistoryAdd?: (item: HistoryItem) => void;
-  onFirstComplete?: (id: string, text: string, file: SelectedFile) => void;
+  onFirstComplete?: (
+    id: string,
+    text: string,
+    file: SelectedFile,
+    diarization?: DiarizationState | null
+  ) => void;
 }
 
 interface UseBatchQueueReturn {
@@ -43,6 +49,7 @@ interface UseBatchQueueReturn {
   cancelProcessing: () => Promise<void>;
 
   getCompletedTranscription: (id: string) => string | undefined;
+  getCompletedDiarization: (id: string) => DiarizationState | undefined;
 }
 
 function generateId(): string {
@@ -604,6 +611,7 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
           model: settings.model,
           language: settings.language,
           outputFormat: 'vtt',
+          diarize: settings.diarize === true,
         });
 
         const endTime = Date.now();
@@ -664,13 +672,19 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
             duration: Math.round((endTime - startTime) / 1000),
             preview: result.text.substring(0, 100) + (result.text.length > 100 ? '...' : ''),
             fullText: result.text,
+            ...(result.segments ? { segments: result.segments } : {}),
+            ...(result.speakers !== undefined ? { speakerCount: result.speakers } : {}),
           };
           onHistoryAdd(historyItem);
         }
 
         if (!hasCalledFirstCompleteRef.current && onFirstComplete && result.text) {
           hasCalledFirstCompleteRef.current = true;
-          onFirstComplete(item.id, result.text, item.file);
+          const diarizationState: DiarizationState | null =
+            result.segments && result.speakers !== undefined
+              ? { segments: result.segments, speakerCount: result.speakers }
+              : null;
+          onFirstComplete(item.id, result.text, item.file, diarizationState);
         }
 
         return {
@@ -863,6 +877,21 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
     [queue]
   );
 
+  const getCompletedDiarization = useCallback(
+    (id: string): DiarizationState | undefined => {
+      const item = queue.find((q) => q.id === id);
+      if (
+        item?.status === 'completed' &&
+        item.result?.segments &&
+        item.result.speakers !== undefined
+      ) {
+        return { segments: item.result.segments, speakerCount: item.result.speakers };
+      }
+      return undefined;
+    },
+    [queue]
+  );
+
   return {
     queue,
     isProcessing,
@@ -884,5 +913,6 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
     cancelProcessing,
 
     getCompletedTranscription,
+    getCompletedDiarization,
   };
 }

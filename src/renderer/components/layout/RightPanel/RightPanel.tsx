@@ -12,7 +12,7 @@ function RightPanel(): React.JSX.Element {
     selectHistoryItem,
     removeHistoryItem,
   } = useAppHistory();
-  const { transcription, selectedFile, copySuccess, handleSave, handleCopy } =
+  const { transcription, diarization, selectedFile, copySuccess, handleSave, handleCopy } =
     useAppTranscription();
 
   if (showHistory) {
@@ -37,6 +37,8 @@ function RightPanel(): React.JSX.Element {
         onSave={handleSave}
         onCopy={handleCopy}
         copySuccess={copySuccess}
+        diarizationSegments={diarization?.segments ?? null}
+        speakerCount={diarization?.speakerCount}
       />
     </div>
   );

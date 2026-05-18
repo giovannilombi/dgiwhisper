@@ -26,13 +26,14 @@
     "build:main": "tsup",
     "electron": "electron dist-electron/main.cjs",
     "electron:dev": "concurrently -k \"vite\" \"npm run build:main -- --watch\" \"wait-on http://localhost:5173 && wait-on dist-electron/main.cjs && electron dist-electron/main.cjs\"",
-    "electron:build": "npm run setup:whisper:universal && npm run icons && npm run build && electron-builder",
-    "electron:build:mac": "npm run setup:whisper:universal && npm run icons && npm run build && electron-builder --mac",
-    "electron:build:dir": "npm run setup:whisper:universal && npm run icons && npm run build && electron-builder --dir",
+    "electron:build": "npm run setup:whisper:universal && npm run setup:diarization && npm run icons && npm run build && electron-builder",
+    "electron:build:mac": "npm run setup:whisper:universal && npm run setup:diarization && npm run icons && npm run build && electron-builder --mac",
+    "electron:build:dir": "npm run setup:whisper:universal && npm run setup:diarization && npm run icons && npm run build && electron-builder --dir",
     "icons": "npx tsx scripts/generate-icons.ts",
     "preview": "vite preview",
     "setup:whisper": "bash scripts/setup-whisper-cpp.sh",
     "setup:whisper:universal": "bash scripts/setup-whisper-cpp.sh --universal",
+    "setup:diarization": "bash scripts/setup-diarization-models.sh",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
@@ -73,7 +74,8 @@
     "jspdf": "^2.5.2",
     "lucide-react": "^0.556.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "sherpa-onnx-node": "^1.13.2"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.1.0",

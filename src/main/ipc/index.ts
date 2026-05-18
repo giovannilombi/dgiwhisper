@@ -10,6 +10,7 @@ import {
   checkFFmpeg,
   transcribe,
 } from '../services/whisper';
+import { runDiarization, isDiarizationAvailable } from '../services/diarization';
 import { checkForUpdates, downloadUpdate, quitAndInstall } from '../services/auto-updater';
 import {
   generateWordDocument,
@@ -25,7 +26,7 @@ import {
 import { safeSend } from '../utils/safe-send';
 import { trackEvent, AnalyticsEvents } from '../services/analytics';
 import { SUPPORTED_EXTENSIONS, VIDEO_EXTENSIONS } from '../../shared/types';
-import type { TranscriptionOptions, SaveFileOptions } from '../../shared/types';
+import type { TranscriptionOptions, SaveFileOptions, DiarizationOptions } from '../../shared/types';
 
 const OPEN_DIALOG_MEDIA_EXTENSIONS = [...SUPPORTED_EXTENSIONS];
 const VIDEO_EXTENSION_SET = new Set<string>(VIDEO_EXTENSIONS);
@@ -217,6 +218,24 @@ export function registerIpcHandlers(getMainWindow: () => BrowserWindow | null) {
       return { success: false, error: errorMessage };
     }
   });
+
+  ipcMain.handle('diarization:isAvailable', () => isDiarizationAvailable());
+
+  ipcMain.handle(
+    'diarization:run',
+    async (_event, wavPath: string, options?: DiarizationOptions) => {
+      try {
+        const segments = await runDiarization(wavPath, options ?? {});
+        trackEvent(AnalyticsEvents.TRANSCRIPTION_COMPLETED, { feature: 'diarization' });
+        return { success: true, segments };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+  );
 
   ipcMain.handle('transcribe:cancel', () => {
     if (currentTranscription && currentTranscription.cancel) {
