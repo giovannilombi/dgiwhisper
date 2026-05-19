@@ -397,16 +397,38 @@ describe('dropTinyDiarizationClusters', () => {
     expect(dropTinyDiarizationClusters([])).toEqual([]);
   });
 
-  it('reassigns tiny-cluster segments to the temporally nearest survivor', () => {
-    // Speaker 5 has 0.4s, total 60.4s → 0.66%. The tiny segment is at
-    // t=20-20.4, closest to speaker 0's segment (which ends at 20).
+  it('reassigns a tiny cluster to the longer adjacent survivor on a distance tie', () => {
+    // Speaker 5 has 0.4s, total 60.4s → 0.66%. The tiny segment at 20-20.4
+    // touches BOTH survivors (distance 0 to either). The tie is broken by
+    // weighting on survivor duration, so speaker 1 (40s) wins over
+    // speaker 0 (20s). This is what keeps doomed-cluster decisions
+    // anchored to the most prominent neighbour instead of flipping.
     const segments = [
       { start: 0, end: 20, speaker: 0 },
       { start: 20, end: 20.4, speaker: 5 },
       { start: 20.4, end: 60.4, speaker: 1 },
     ];
     const out = dropTinyDiarizationClusters(segments, 0.03);
-    expect(out[1]!.speaker).toBe(0); // or 1, but here 0 wins ties by order
+    expect(out[1]!.speaker).toBe(1);
+  });
+
+  it('reassigns ALL segments of a doomed cluster to the same survivor (no splitting)', () => {
+    // The doomed cluster (speaker 9) has two segments — one early in the
+    // audio (near speaker 0) and one late (near speaker 1). The legacy
+    // per-segment "nearest survivor" rule would have flipped them onto
+    // different speakers, visibly inverting labels mid-recording. The
+    // weighted-vote rule must instead pick ONE survivor for all of them.
+    const segments = [
+      { start: 0, end: 60, speaker: 0 }, // long
+      { start: 60, end: 60.3, speaker: 9 }, // doomed, adjacent to sp0
+      { start: 60.3, end: 60.6, speaker: 9 }, // doomed, still next to sp0
+      { start: 60.6, end: 120, speaker: 1 }, // long
+      { start: 120, end: 120.3, speaker: 9 }, // doomed, adjacent to sp1
+    ];
+    const out = dropTinyDiarizationClusters(segments, 0.03);
+    const doomedNow = out.filter((_, i) => [1, 2, 4].includes(i)).map((s) => s.speaker);
+    // All three doomed segments must agree on a single survivor.
+    expect(new Set(doomedNow).size).toBe(1);
   });
 });
 

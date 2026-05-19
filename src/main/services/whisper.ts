@@ -747,18 +747,34 @@ export function transcribe(
             );
             // If the user picked an explicit speaker count we trust it
             // and skip the cull. With "Auto Detect", drop micro-clusters
-            // (< 3% of total speaking time) — these are almost always
-            // diarizer noise rather than a real participant.
+            // (< 5% of total speaking time) — these are almost always
+            // diarizer noise rather than a real participant. 5% is a
+            // little more aggressive than the 3% we used to ship: on
+            // TitaNet it's still well below any genuine participant
+            // share in a normal 2-4 speaker conversation, but it kills
+            // the long tail of "9 cluster instead of 2" cases.
             const diarSegs =
               typeof diarizeSpeakers === 'number' && diarizeSpeakers > 0
                 ? rawDiarSegs
-                : dropTinyDiarizationClusters(rawDiarSegs);
+                : dropTinyDiarizationClusters(rawDiarSegs, 0.05);
             const rawSpeakers = new Set(rawDiarSegs.map((s) => s.speaker)).size;
             const culledSpeakers = new Set(diarSegs.map((s) => s.speaker)).size;
+            // Per-speaker total speech time (in seconds), useful when the
+            // count of clusters looks wrong: lets you immediately see if
+            // sherpa thinks one speaker is doing 99% of the talking or
+            // if the load is more evenly split.
+            const perSpeakerSec = new Map<number, number>();
+            for (const s of rawDiarSegs) {
+              perSpeakerSec.set(s.speaker, (perSpeakerSec.get(s.speaker) ?? 0) + (s.end - s.start));
+            }
             log.info('[transcribe] diarization returned', {
-              segmentCount: diarSegs.length,
+              rawSegmentCount: rawDiarSegs.length,
+              culledSegmentCount: diarSegs.length,
               rawSpeakers,
               culledSpeakers,
+              rawDurationsSec: [...perSpeakerSec.entries()]
+                .map(([sp, d]) => `${sp}:${d.toFixed(1)}`)
+                .join(' '),
             });
 
             // Prefer the precise token-level merge using whisper's
@@ -767,17 +783,41 @@ export function transcribe(
             const jsonPath = outputBase + '.json';
             let tagged: ReturnType<typeof splitSegmentsBySpeakers> = [];
             let mergeStrategy: 'tokens' | 'split' = 'split';
+            // Also parse the VTT so we can cross-check how much text each
+            // path produced — useful when chunks of transcript appear to
+            // be missing in the diarized view: comparing the VTT cue
+            // count to the token-merge segment count tells us which
+            // stage dropped content.
+            const vttSegs = parseVtt(vtt);
+            const vttCharCount = vttSegs.reduce((sum, s) => sum + s.text.length, 0);
+
             if (fs.existsSync(jsonPath)) {
               try {
                 const jsonText = fs.readFileSync(jsonPath, 'utf-8');
                 const tokens = parseWhisperJsonFull(jsonText);
+                const tokenCharCount = tokens.reduce((sum, t) => sum + t.text.length, 0);
                 if (tokens.length > 0) {
                   tagged = mergeTokensWithDiarization(tokens, diarSegs);
                   mergeStrategy = 'tokens';
+                  const mergedCharCount = tagged.reduce((sum, s) => sum + s.text.length, 0);
                   log.info('[transcribe] using token-level diarization merge', {
                     tokenCount: tokens.length,
                     segmentCount: tagged.length,
+                    tokenCharCount,
+                    mergedCharCount,
+                    vttCueCount: vttSegs.length,
+                    vttCharCount,
                   });
+                  // Sanity check: the merged transcript should be roughly
+                  // the same length as the source token text. If it
+                  // shrinks by more than ~5% we lost content somewhere.
+                  if (tokenCharCount > 0 && mergedCharCount < tokenCharCount * 0.95) {
+                    log.warn('[transcribe] token-merge dropped a significant amount of text', {
+                      tokenCharCount,
+                      mergedCharCount,
+                      ratio: (mergedCharCount / tokenCharCount).toFixed(3),
+                    });
+                  }
                 }
               } catch (jsonErr) {
                 log.warn('[transcribe] failed to parse whisper json-full output', {
@@ -786,10 +826,9 @@ export function transcribe(
               }
             }
             if (mergeStrategy === 'split') {
-              const whisperSegs = parseVtt(vtt);
-              tagged = splitSegmentsBySpeakers(whisperSegs, diarSegs);
+              tagged = splitSegmentsBySpeakers(vttSegs, diarSegs);
               log.info('[transcribe] falling back to VTT-level diarization merge', {
-                whisperSegments: whisperSegs.length,
+                whisperSegments: vttSegs.length,
                 splitSegments: tagged.length,
               });
             }

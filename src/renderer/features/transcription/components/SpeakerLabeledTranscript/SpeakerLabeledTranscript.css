@@ -3,6 +3,12 @@
   flex-direction: column;
   gap: 14px;
   padding: 0 4px;
+  /* The output-container has overflow:hidden and flex column. Without
+     these, a long diarized transcript would just be clipped — claim
+     the remaining vertical space and own the scrolling here. */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .speaker-transcript-banner {

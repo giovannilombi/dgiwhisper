@@ -186,8 +186,22 @@ async function main(): Promise<void> {
       },
       embedding: { model: input.modelPaths.embedding, numThreads },
       clustering: input.clustering,
-      minDurationOn: input.minDurationOn ?? 0.2,
-      minDurationOff: input.minDurationOff ?? 0.5,
+      // minDurationOn = shortest speech run pyannote will emit. The
+      // upstream default of 0.2s gives many sub-500ms segments which
+      // are too short to extract a reliable TitaNet embedding — those
+      // embeddings then drift, polluting the clustering with spurious
+      // speakers (or, more subtly, mis-assigning a segment to the
+      // wrong cluster centroid). 1.2s pushes the windows long enough
+      // that the embedding model sees a meaningful prosodic chunk of
+      // each speaker. Genuine short interjections under 1s do get
+      // absorbed into the surrounding silence, which is acceptable
+      // for the majority of meeting/interview recordings.
+      minDurationOn: input.minDurationOn ?? 1.2,
+      // minDurationOff = shortest silence pyannote will treat as a
+      // boundary between two speaker turns. 0.7s prevents a single
+      // breath pause from splitting one speaker's run into two
+      // separate cluster-target segments.
+      minDurationOff: input.minDurationOff ?? 0.7,
     });
     log('OfflineSpeakerDiarization ready', { sampleRate: sd.sampleRate });
 

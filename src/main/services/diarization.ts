@@ -36,12 +36,14 @@ function getModelPaths(): ModelPaths {
   const baseDir = getModelsBaseDir();
   return {
     segmentation: path.join(baseDir, 'sherpa-onnx-pyannote-segmentation-3-0', 'model.onnx'),
-    // 3D-Speaker ERes2Net is the embedding model used in the upstream
-    // sherpa-onnx diarization example and is tuned to work well with the
-    // pyannote segmentation 3.0 model at threshold 0.5. We tried campplus
-    // briefly but it requires a different threshold tune that we have not
-    // calibrated, so it inflated the cluster count badly on clean audio.
-    embedding: path.join(baseDir, '3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx'),
+    // NVIDIA NeMo TitaNet Large speaker embedding. Trained on VoxCeleb
+    // 1+2 plus other Western-language corpora and known to generalise
+    // well to Italian/English speech. Replaces the previous 3D-Speaker
+    // ERes2Net which was trained on Chinese and required us to push the
+    // clustering threshold to 0.9 to keep two-speaker recordings from
+    // exploding into dozens of clusters. With TitaNet a threshold around
+    // 0.45–0.55 is the upstream-recommended range.
+    embedding: path.join(baseDir, 'nemo_en_titanet_large.onnx'),
   };
 }
 
@@ -121,18 +123,15 @@ export function runDiarization(
         // sherpa-onnx FastClustering uses `threshold` as a cosine-DISTANCE
         // cutoff on the agglomerative dendrogram (see fast-clustering.cc:
         // distance[k] = 1 - cosine_similarity, then cutree_cdist(..., threshold)).
-        // So higher threshold → cut higher → MORE merges → FEWER clusters,
-        // and lower threshold → cut lower → MORE clusters.
-        // The upstream example value of 0.5 over-segmented heavily on our
-        // test recordings (~100+ clusters from a 2-speaker file). The
-        // embedding model we ship is trained on Chinese (eres2net zh-cn),
-        // so on Italian/English speech the inter-speaker distances run
-        // closer to 1 than to 0, which means we need a high cosine-distance
-        // cutoff to keep two-speaker conversations from blowing up.
-        // 0.9 was found to give roughly the right count on our test set;
-        // pair it with dropTinyDiarizationClusters() downstream to clean
-        // up any residual micro-clusters.
-        threshold: options.threshold ?? 0.9,
+        // Higher threshold → cut higher → MORE merges → FEWER clusters,
+        // lower threshold → cut lower → MORE clusters.
+        //
+        // With NeMo TitaNet Large the published sherpa-onnx example uses
+        // 0.5 for general English speech; we keep that as the default
+        // for it/en recordings. The dropTinyDiarizationClusters() pass
+        // downstream still picks up the long tail of <3% micro-clusters
+        // that any embedding model occasionally hallucinates.
+        threshold: options.threshold ?? 0.5,
       },
     });
 

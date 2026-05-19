@@ -300,8 +300,16 @@ export function parseWhisperJsonFull(jsonText: string): WhisperToken[] {
  * sentence-mid jitter produced by over-segmenting diarization without
  * touching real turn-takes (which are always neighboured by a different
  * speaker on the other side).
+ *
+ * 8 tokens ≈ 2–3 s of speech depending on rate. Empirically this is the
+ * smallest cutoff that still erases the "cluster swap" symptom on noisy
+ * sherpa-onnx output (where a single misclassified mid-sentence segment
+ * inserts ~5 misattributed tokens). A real interjection ("yes please")
+ * is usually fewer than 5 tokens, but it's also almost always followed
+ * by a third speaker's reaction, not a return to the original — so the
+ * "flanked by SAME speaker on both sides" guard keeps it alive.
  */
-const DEFAULT_MIN_RUN_TOKENS = 4;
+const DEFAULT_MIN_RUN_TOKENS = 8;
 
 interface SpeakerRun {
   speaker: number;
@@ -404,25 +412,61 @@ export function dropTinyDiarizationClusters(
 
   if (keep.size === perSpeaker.size) return segments;
 
-  // For dropped segments, find the nearest surviving segment in time
-  // (by gap between segment edges) and inherit its speaker.
   const survivors = segments.filter((s) => keep.has(s.speaker));
   if (survivors.length === 0) return segments;
 
-  return segments.map((seg) => {
-    if (keep.has(seg.speaker)) return seg;
-    let best: { speaker: number; dist: number } | null = null;
-    for (const other of survivors) {
-      const dist =
-        seg.end <= other.start
-          ? other.start - seg.end
-          : other.end <= seg.start
-            ? seg.start - other.end
-            : 0; // overlapping, distance 0
-      if (best === null || dist < best.dist) best = { speaker: other.speaker, dist };
+  // For each DOOMED cluster, decide once which survivor it should merge
+  // into and apply that decision to ALL of its segments. The naive
+  // alternative — picking the nearest survivor per individual segment —
+  // could split one doomed cluster's segments across multiple survivors
+  // based on their position in the audio, which is the source of the
+  // "speakers got inverted mid-recording" symptom: a single noisy
+  // intermediate cluster ends up half-on speaker 0 and half-on speaker 1,
+  // visibly flipping the labels at the audio midpoint.
+  //
+  // The decision is made by weighted voting: each doomed segment casts
+  // a vote for the survivor that is temporally closest, weighted by
+  // that survivor segment's own duration. Longer survivor segments are
+  // more reliable evidence of who that doomed cluster really is.
+  const doomedToSurvivor = new Map<number, number>();
+  const fallbackSurvivor = sorted.find(([sp]) => keep.has(sp))?.[0] ?? survivors[0]!.speaker;
+
+  for (const [doomedSpeaker] of perSpeaker) {
+    if (keep.has(doomedSpeaker)) continue;
+    const doomedSegs = segments.filter((s) => s.speaker === doomedSpeaker);
+    const votes = new Map<number, number>();
+    for (const dseg of doomedSegs) {
+      let best: { speaker: number; dist: number; weight: number } | null = null;
+      for (const surv of survivors) {
+        const dist =
+          dseg.end <= surv.start
+            ? surv.start - dseg.end
+            : surv.end <= dseg.start
+              ? dseg.start - surv.end
+              : 0;
+        const weight = surv.end - surv.start;
+        if (best === null || dist < best.dist || (dist === best.dist && weight > best.weight)) {
+          best = { speaker: surv.speaker, dist, weight };
+        }
+      }
+      if (best) votes.set(best.speaker, (votes.get(best.speaker) ?? 0) + best.weight);
     }
-    return { ...seg, speaker: best?.speaker ?? seg.speaker };
-  });
+    let winner = fallbackSurvivor;
+    let winnerScore = -1;
+    for (const [sp, score] of votes) {
+      if (score > winnerScore) {
+        winnerScore = score;
+        winner = sp;
+      }
+    }
+    doomedToSurvivor.set(doomedSpeaker, winner);
+  }
+
+  return segments.map((seg) =>
+    keep.has(seg.speaker)
+      ? seg
+      : { ...seg, speaker: doomedToSurvivor.get(seg.speaker) ?? seg.speaker }
+  );
 }
 
 export function mergeTokensWithDiarization(

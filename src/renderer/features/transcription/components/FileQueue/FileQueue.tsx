@@ -265,7 +265,15 @@ function FileQueue({
                       />
                     </div>
                   )}
-                  {typeof item.progress.audioDurationSec === 'number' &&
+                  {/* The ETA is shown only during diarization, which is the
+                      one phase where sherpa-onnx runs synchronously and we
+                      cannot emit a real progress bar — the audio-length/3
+                      stamp is the user's only cue that the wait is bounded.
+                      For preparing/converting/transcribing we already show
+                      a percent-driven bar, so an extra ETA would just be
+                      visual noise. */}
+                  {item.progress.phase === 'diarizing' &&
+                    typeof item.progress.audioDurationSec === 'number' &&
                     item.progress.audioDurationSec > 0 && (
                       <span className="file-queue-item-eta">
                         {t('queue.item.eta', {
@@ -320,7 +328,13 @@ function FileQueue({
         {processingCount > 0 && (
           <span>{t('queue.summary.processing', { count: processingCount })}</span>
         )}
-        {processingCount > 0 && (
+        {/* Hide the aggregate ETA while ANY item is in the diarization
+            phase: sherpa-onnx runs synchronously and the percent-driven
+            estimator goes blind, so the value it shows would be wildly
+            unreliable. The per-item audio-length/3 stamp above stays
+            visible for the diarizing item, which is the only ETA the
+            user actually needs at that point. */}
+        {processingCount > 0 && !isAnyDiarizing && (
           <span className="eta">
             {t('queue.summary.etaPrefix')}{' '}
             {typeof estimatedTimeRemainingSec === 'number'
