@@ -42,6 +42,12 @@ export interface DiarizeParams {
   threshold?: number;
   /** Drop micro-clusters below this fraction of total speech time (auto-detect only). */
   minDurationRatio?: number;
+  /** Minimum speech run (seconds) emitted by pyannote segmentation. */
+  minDurationOn?: number;
+  /** Minimum silence (seconds) needed to separate two speaker turns. */
+  minDurationOff?: number;
+  /** Token-smoothing window for mergeTokensWithDiarization (in tokens). */
+  minRun?: number;
 }
 
 export interface DiarizeResult {
@@ -60,6 +66,36 @@ interface EmbeddingCacheEntry {
   segmentTimestamps: { start: number; end: number }[];
   /** Per-segment speaker embedding, indexed in lockstep with segmentTimestamps. */
   embeddings: Float32Array[];
+  /** Segmentation params used to produce these embeddings. If a fresh
+   *  request comes in with different minDurationOn/Off, the segments
+   *  would shift and the cached embeddings can no longer be trusted —
+   *  we invalidate and re-run sherpa from scratch. */
+  segmentationParams: {
+    minDurationOn: number;
+    minDurationOff: number;
+  };
+}
+
+const DEFAULT_SEGMENTATION = {
+  minDurationOn: 0.6,
+  minDurationOff: 0.7,
+};
+
+function effectiveSegmentationParams(params: DiarizeParams): {
+  minDurationOn: number;
+  minDurationOff: number;
+} {
+  return {
+    minDurationOn: params.minDurationOn ?? DEFAULT_SEGMENTATION.minDurationOn,
+    minDurationOff: params.minDurationOff ?? DEFAULT_SEGMENTATION.minDurationOff,
+  };
+}
+
+function segmentationParamsMatch(
+  a: { minDurationOn: number; minDurationOff: number },
+  b: { minDurationOn: number; minDurationOff: number }
+): boolean {
+  return a.minDurationOn === b.minDurationOn && a.minDurationOff === b.minDurationOff;
 }
 
 const embeddingCache = new Map<string, EmbeddingCacheEntry>();
@@ -77,7 +113,7 @@ export async function diarize(audioId: string, params: DiarizeParams = {}): Prom
   }
 
   const diarSegments = await produceDiarizationSegments(audioId, entry, params);
-  const merged = alignWithTranscript(entry, diarSegments.segments);
+  const merged = alignWithTranscript(entry, diarSegments.segments, params.minRun);
   return {
     segments: merged.segments,
     speakerCount: merged.speakerCount,
@@ -123,10 +159,23 @@ async function produceDiarizationSegments(
     }
   }
 
-  // 2) Cache hit — re-cluster instantly from cached embeddings.
+  // 2) Cache hit — re-cluster instantly from cached embeddings, BUT
+  //    only if the segmentation params still match the ones that
+  //    produced those embeddings. minDurationOn/Off changes shift the
+  //    segment boundaries themselves, so the cached vectors no longer
+  //    line up and we have to re-run sherpa.
   const cachedEmbeddings = embeddingCache.get(audioId);
+  const requestedSeg = effectiveSegmentationParams(params);
   if (cachedEmbeddings) {
-    return reclusterFromCache(audioId, cachedEmbeddings, params);
+    if (segmentationParamsMatch(cachedEmbeddings.segmentationParams, requestedSeg)) {
+      return reclusterFromCache(audioId, cachedEmbeddings, params);
+    }
+    log.info('[diarize-service] embedding cache invalidated — segmentation params changed', {
+      audioId,
+      cached: cachedEmbeddings.segmentationParams,
+      requested: requestedSeg,
+    });
+    embeddingCache.delete(audioId);
   }
 
   // 3) Fresh sherpa run. Extracts embeddings, caches them, then clusters.
@@ -166,12 +215,16 @@ async function runSherpaFresh(
   const abort = new AbortController();
   inFlightAbort = abort;
 
+  const seg = effectiveSegmentationParams(params);
+
   try {
     const result = await runDiarization(
       monoWavPath,
       {
         numClusters: params.numClusters,
         threshold: params.threshold,
+        minDurationOn: seg.minDurationOn,
+        minDurationOff: seg.minDurationOff,
         withEmbeddings: true,
       },
       abort.signal
@@ -181,11 +234,13 @@ async function runSherpaFresh(
       embeddingCache.set(audioId, {
         segmentTimestamps: result.segments.map((s) => ({ start: s.start, end: s.end })),
         embeddings: result.embeddings,
+        segmentationParams: seg,
       });
       log.info('[diarize-service] embedding cache populated', {
         audioId,
         count: result.embeddings.length,
         dim: result.embeddings[0]?.length ?? 0,
+        seg,
       });
     } else {
       log.warn('[diarize-service] embeddings missing from runner result; cache not populated', {
@@ -209,7 +264,8 @@ interface AlignedTranscript {
 
 function alignWithTranscript(
   entry: { whisperJsonPath?: string; whisperVttPath?: string },
-  diarSegments: DiarizationSegment[]
+  diarSegments: DiarizationSegment[],
+  minRun?: number
 ): AlignedTranscript {
   // Prefer the token-level merge from whisper's --output-json-full. If
   // the JSON is missing or unparseable, fall back to the proportional
@@ -219,7 +275,7 @@ function alignWithTranscript(
       const jsonText = fs.readFileSync(entry.whisperJsonPath, 'utf-8');
       const tokens = parseWhisperJsonFull(jsonText);
       if (tokens.length > 0) {
-        const tagged = mergeTokensWithDiarization(tokens, diarSegments);
+        const tagged = mergeTokensWithDiarization(tokens, diarSegments, minRun);
         const { segments, speakerCount } = remapSpeakers(tagged);
         return { segments, speakerCount };
       }

@@ -1,4 +1,5 @@
 import React from 'react';
+import { AlertTriangle, X } from 'lucide-react';
 import { FileDropZone, FileQueue } from '../../../features/transcription';
 import { SettingsPanel } from '../../../features/settings';
 import { useAppTranscription } from '../../../contexts';
@@ -8,6 +9,7 @@ import { ErrorMessage } from './ErrorMessage';
 import { DonationSection } from './DonationSection';
 import { Button, SystemWarning } from '../../ui';
 import { useTranslation } from '../../../i18n';
+import './LeftPanel.css';
 
 function LeftPanel(): React.JSX.Element {
   const {
@@ -17,14 +19,18 @@ function LeftPanel(): React.JSX.Element {
     setModelDownloaded,
     queue,
     duplicateFilesSkipped,
+    pendingDuplicates,
     estimatedTimeRemainingSec,
     showQueueResumePrompt,
     restoredQueueItemsCount,
     selectedQueueItemId,
     handleFilesSelect,
+    confirmDuplicate,
+    dismissDuplicate,
     removeFromQueue,
     clearCompletedFromQueue,
     handleRetryFailed,
+    handleRetryItem,
     selectQueueItem,
     dismissQueueResumePrompt,
     resumePersistedQueue,
@@ -48,6 +54,39 @@ function LeftPanel(): React.JSX.Element {
         duplicateFilesSkipped={duplicateFilesSkipped}
         disabled={isTranscribing}
       />
+
+      {/* Pending duplicate alerts — yellow band per file, the user can
+          confirm re-add (force a fresh transcription) or dismiss to
+          drop the duplicate. Replaces the previous silent skip. */}
+      {pendingDuplicates.length > 0 && (
+        <div className="duplicate-alerts">
+          {pendingDuplicates.map((file) => (
+            <div key={file.path} className="duplicate-alert" role="alert">
+              <AlertTriangle size={16} aria-hidden="true" />
+              <div className="duplicate-alert-body">
+                <p className="duplicate-alert-title">
+                  {t('duplicate.alert.title', { name: file.name })}
+                </p>
+                <p className="duplicate-alert-question">{t('duplicate.alert.question')}</p>
+              </div>
+              <div className="duplicate-alert-actions">
+                <Button size="sm" onClick={() => confirmDuplicate(file)}>
+                  {t('duplicate.alert.confirm')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  iconOnly
+                  icon={<X size={14} />}
+                  onClick={() => dismissDuplicate(file)}
+                  title={t('duplicate.alert.dismiss')}
+                  aria-label={t('duplicate.alert.dismiss')}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {showQueueResumePrompt && restoredQueueItemsCount > 0 && (
         <div className="queue-resume-banner" role="status" aria-live="polite">
@@ -75,6 +114,7 @@ function LeftPanel(): React.JSX.Element {
         onRemove={removeFromQueue}
         onClearCompleted={clearCompletedFromQueue}
         onRetryFailed={handleRetryFailed}
+        onRetryItem={(id) => void handleRetryItem(id)}
         onSelectItem={selectQueueItem}
         selectedItemId={selectedQueueItemId}
         estimatedTimeRemainingSec={estimatedTimeRemainingSec}

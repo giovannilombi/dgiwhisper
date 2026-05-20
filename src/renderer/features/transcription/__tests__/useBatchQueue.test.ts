@@ -183,8 +183,8 @@ describe('useBatchQueue', () => {
       expect(new Set(ids).size).toBe(2);
     });
 
-    it('should skip duplicate file paths and expose skipped count', () => {
-      const warnSpy = vi.spyOn(logger, 'warn');
+    it('should park duplicate file paths in pendingDuplicates for confirmation', () => {
+      const infoSpy = vi.spyOn(logger, 'info');
       const { result } = renderHook(() => useBatchQueue({ settings: mockSettings }));
 
       const duplicateFile = createMockSelectedFile('audio1.mp3');
@@ -196,19 +196,61 @@ describe('useBatchQueue', () => {
 
       expect(result.current.queue).toHaveLength(1);
       expect(result.current.duplicateFilesSkipped).toBe(0);
+      expect(result.current.pendingDuplicates).toHaveLength(0);
 
       act(() => {
         result.current.addFiles([duplicateFile, newFile, duplicateFile]);
       });
 
+      // The new file lands in the queue, the duplicates are held aside
+      // in pendingDuplicates rather than silently skipped.
       expect(result.current.queue).toHaveLength(2);
       expect(result.current.queue[0]!.file.path).toBe('/path/to/audio1.mp3');
       expect(result.current.queue[1]!.file.path).toBe('/path/to/audio2.mp3');
       expect(result.current.duplicateFilesSkipped).toBe(2);
-      expect(warnSpy).toHaveBeenCalledWith('Skipped duplicate files in batch queue', {
-        count: 2,
-        files: ['audio1.mp3', 'audio1.mp3'],
+      // pendingDuplicates is de-duplicated by identity key, so the two
+      // copies of audio1 collapse into a single alert.
+      expect(result.current.pendingDuplicates).toHaveLength(1);
+      expect(result.current.pendingDuplicates[0]!.path).toBe('/path/to/audio1.mp3');
+      expect(infoSpy).toHaveBeenCalledWith(
+        'Duplicate files detected — awaiting user confirmation',
+        expect.objectContaining({ count: 2 })
+      );
+    });
+
+    it('confirmDuplicate force-adds the file as a fresh queue item', () => {
+      const { result } = renderHook(() => useBatchQueue({ settings: mockSettings }));
+      const file = createMockSelectedFile('audio1.mp3');
+
+      act(() => {
+        result.current.addFiles([file]);
+        result.current.addFiles([file]);
       });
+      expect(result.current.queue).toHaveLength(1);
+      expect(result.current.pendingDuplicates).toHaveLength(1);
+
+      act(() => {
+        result.current.confirmDuplicate(file);
+      });
+      expect(result.current.queue).toHaveLength(2);
+      expect(result.current.pendingDuplicates).toHaveLength(0);
+    });
+
+    it('dismissDuplicate removes the file from pendingDuplicates without adding', () => {
+      const { result } = renderHook(() => useBatchQueue({ settings: mockSettings }));
+      const file = createMockSelectedFile('audio1.mp3');
+
+      act(() => {
+        result.current.addFiles([file]);
+        result.current.addFiles([file]);
+      });
+      expect(result.current.pendingDuplicates).toHaveLength(1);
+
+      act(() => {
+        result.current.dismissDuplicate(file);
+      });
+      expect(result.current.queue).toHaveLength(1);
+      expect(result.current.pendingDuplicates).toHaveLength(0);
     });
 
     it('should detect duplicates against restored queue before effects run', () => {

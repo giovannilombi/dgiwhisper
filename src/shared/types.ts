@@ -123,9 +123,7 @@ export interface TranscriptionResult {
 export interface DiarizationVersion {
   id: string;
   createdAt: string;
-  params: {
-    numClusters?: number;
-    threshold?: number;
+  params: DiarizeParamsShared & {
     /** Indicates whether the channel-based fast-path was used. */
     strategy: 'channel' | 'sherpa-fresh' | 'sherpa-recluster';
   };
@@ -144,6 +142,8 @@ export interface DiarizationSegment {
 export interface DiarizationOptions {
   numClusters?: number;
   threshold?: number;
+  minDurationOn?: number;
+  minDurationOff?: number;
 }
 
 export interface DiarizationProgress {
@@ -181,10 +181,7 @@ export const MAX_DIARIZATION_VERSIONS = 3;
 export interface DiarizationVersionEntry {
   id: string;
   createdAt: string;
-  params: {
-    numClusters?: number;
-    threshold?: number;
-  };
+  params: DiarizeParamsShared;
   segments: TranscribedSegment[];
   speakerCount: number;
   labels?: Record<number, string>;
@@ -192,15 +189,40 @@ export interface DiarizationVersionEntry {
   cached?: boolean;
 }
 
+/**
+ * Full set of knobs the user can tweak in the "Personalizzata" mode of
+ * the diarization tab. Everything is optional — the diarize-service
+ * fills in sensible defaults for any omitted field. Some of these
+ * affect the cached embeddings (see DIARIZE_PARAMS_AFFECTING_SEGMENTS).
+ */
+export interface DiarizeParamsShared {
+  /** Force exactly N clusters. Undefined = auto-detect via threshold. */
+  numClusters?: number;
+  /** Cosine-distance cutoff (0..1). Higher = fewer clusters. Used only in auto-detect. */
+  threshold?: number;
+  /** Shortest speech run pyannote will emit, in seconds. */
+  minDurationOn?: number;
+  /** Shortest silence to separate two turns, in seconds. */
+  minDurationOff?: number;
+  /** Drop clusters whose total speaking time is below this fraction of the
+   *  audio. 0..1 (e.g. 0.05 = 5%). Auto-detect only. */
+  minDurationRatio?: number;
+  /** Token-smoothing window: short same-speaker runs flanked by another
+   *  speaker get absorbed. Larger = corrects longer mis-classifications. */
+  minRun?: number;
+}
+
+/** Subset of params whose value changes the segment boundaries themselves
+ *  — i.e. invalidates the cached per-segment embeddings and forces a
+ *  fresh sherpa run. */
+export const DIARIZE_PARAMS_AFFECTING_SEGMENTS = ['minDurationOn', 'minDurationOff'] as const;
+
 export interface DiarizationJobState {
   status: DiarizationJobStatus;
   /** Last params used (or about to be used). Persisted so the UI can
    *  show what produced the current result and pre-fill the form on
    *  next launch. */
-  params?: {
-    numClusters?: number;
-    threshold?: number;
-  };
+  params?: DiarizeParamsShared;
   /** Friendly error message when status === 'error'. */
   error?: string;
   /** Started timestamp of the current/last run. */
@@ -243,12 +265,19 @@ export interface QueueItem {
   /** Per-item diarization state. Initially undefined; populated when
    *  the user first opens the diarization tab or queues a job. */
   diarization?: DiarizationJobState;
+  /** Optional user-chosen display name for the transcript. When set,
+   *  the UI shows "displayName | originalFileName" wherever the file
+   *  is referenced. */
+  displayName?: string;
 }
 
 export interface HistoryItem {
   id: string;
   fileName: string;
   filePath: string;
+  /** Optional user-chosen display name for this transcript. UI renders
+   *  "displayName | fileName" when present, "fileName" alone otherwise. */
+  displayName?: string;
   model: WhisperModelName;
   language: LanguageCode;
   format?: OutputFormat;

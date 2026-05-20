@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { FileText, Users, File as FileIcon } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { FileText, Users, File as FileIcon, Pencil, Check, X } from 'lucide-react';
 import { OutputDisplay } from '../../../features/transcription';
 import { DiarizationTab } from '../../../features/transcription/components/DiarizationTab';
 import { TranscriptionHistory } from '../../../features/history';
-import { Tabs } from '../../ui';
+import { Tabs, Button } from '../../ui';
 import { useAppHistory, useAppTranscription } from '../../../contexts';
 import { useTranslation } from '../../../i18n';
-import { formatFileSize } from '../../../utils';
+import { formatFileSize, formatTranscriptLabel } from '../../../utils';
 import './RightPanel.css';
 
 type RightPanelTabId = 'transcript' | 'diarization';
@@ -28,10 +28,12 @@ function RightPanel(): React.JSX.Element {
     copySuccess,
     selectedQueueItemId,
     selectedItemDiarization,
+    selectedItemDisplayName,
     audioId,
     currentDiarizeItemId,
     handleSave,
     handleCopy,
+    renameSelectedItem,
   } = useAppTranscription();
 
   // Per-file tab state: switching to a different queue item resets to
@@ -79,15 +81,14 @@ function RightPanel(): React.JSX.Element {
   return (
     <div className="right-panel">
       {showFileHeader && selectedFile && (
-        <div className="right-panel-file-header" title={selectedFile.path}>
-          <FileIcon size={14} aria-hidden="true" className="right-panel-file-header-icon" />
-          <span className="right-panel-file-header-name">{selectedFile.name}</span>
-          {typeof selectedFile.size === 'number' && selectedFile.size > 0 && (
-            <span className="right-panel-file-header-size">
-              {formatFileSize(selectedFile.size)}
-            </span>
-          )}
-        </div>
+        <FileHeader
+          fileName={selectedFile.name}
+          path={selectedFile.path}
+          size={selectedFile.size}
+          displayName={selectedItemDisplayName}
+          canRename={Boolean(selectedQueueItemId)}
+          onRename={renameSelectedItem}
+        />
       )}
 
       {showTabs && (
@@ -127,6 +128,112 @@ function RightPanel(): React.JSX.Element {
           diarizationLabels={undefined}
           onDiarizationStateChange={() => {}}
         />
+      )}
+    </div>
+  );
+}
+
+interface FileHeaderProps {
+  fileName: string;
+  path: string;
+  size?: number;
+  displayName: string | null;
+  canRename: boolean;
+  onRename: (displayName: string) => void;
+}
+
+function FileHeader({
+  fileName,
+  path,
+  size,
+  displayName,
+  canRename,
+  onRename,
+}: FileHeaderProps): React.JSX.Element {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(displayName ?? '');
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setDraft(displayName ?? '');
+  }, [displayName]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commit = () => {
+    onRename(draft);
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(displayName ?? '');
+    setEditing(false);
+  };
+
+  const label = formatTranscriptLabel({ displayName, fileName });
+
+  return (
+    <div className="right-panel-file-header" title={path}>
+      <FileIcon size={14} aria-hidden="true" className="right-panel-file-header-icon" />
+      {editing ? (
+        <>
+          <input
+            ref={inputRef}
+            type="text"
+            className="right-panel-file-header-input"
+            value={draft}
+            placeholder={fileName}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit();
+              if (e.key === 'Escape') cancel();
+            }}
+            aria-label={t('rightPanel.rename.inputAria')}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            icon={<Check size={14} />}
+            onClick={commit}
+            title={t('rightPanel.rename.save')}
+            aria-label={t('rightPanel.rename.save')}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
+            icon={<X size={14} />}
+            onClick={cancel}
+            title={t('rightPanel.rename.cancel')}
+            aria-label={t('rightPanel.rename.cancel')}
+          />
+        </>
+      ) : (
+        <>
+          <span className="right-panel-file-header-name">{label}</span>
+          {typeof size === 'number' && size > 0 && (
+            <span className="right-panel-file-header-size">{formatFileSize(size)}</span>
+          )}
+          {canRename && (
+            <Button
+              variant="ghost"
+              size="sm"
+              iconOnly
+              icon={<Pencil size={12} />}
+              onClick={() => setEditing(true)}
+              title={t('rightPanel.rename.edit')}
+              aria-label={t('rightPanel.rename.edit')}
+              className="right-panel-file-header-rename"
+            />
+          )}
+        </>
       )}
     </div>
   );

@@ -150,24 +150,30 @@ export function runDiarization(
       return;
     }
 
+    // Each of these has a default mirrored in the worker; we still
+    // surface them explicitly here so the renderer's "Personalizzata"
+    // panel can override them on a per-run basis.
+    const clusteringPayload = {
+      numClusters: options.numClusters ?? -1,
+      // sherpa-onnx FastClustering uses `threshold` as a cosine-DISTANCE
+      // cutoff on the agglomerative dendrogram. Higher threshold → cut
+      // higher → MORE merges → FEWER clusters. Default 0.5 works for
+      // general it/en speech with WeSpeaker ResNet293.
+      threshold: options.threshold ?? 0.5,
+    };
+    const minDurationOn = options.minDurationOn;
+    const minDurationOff = options.minDurationOff;
+
     const payload = JSON.stringify({
       wavPath,
       modelPaths,
-      clustering: {
-        numClusters: options.numClusters ?? -1,
-        // sherpa-onnx FastClustering uses `threshold` as a cosine-DISTANCE
-        // cutoff on the agglomerative dendrogram (see fast-clustering.cc:
-        // distance[k] = 1 - cosine_similarity, then cutree_cdist(..., threshold)).
-        // Higher threshold → cut higher → MORE merges → FEWER clusters,
-        // lower threshold → cut lower → MORE clusters.
-        //
-        // With WeSpeaker ResNet293 the published sherpa-onnx example uses
-        // 0.5 for general speech; we keep that as the default for it/en
-        // recordings. The diarize-service downstream may re-cluster with
-        // a different value from the cached embeddings.
-        threshold: options.threshold ?? 0.5,
-      },
+      clustering: clusteringPayload,
       withEmbeddings: options.withEmbeddings === true,
+      // pyannote segmentation thresholds: only forwarded when the
+      // caller actually overrode them, otherwise the worker keeps its
+      // own defaults (0.6 / 0.7).
+      ...(typeof minDurationOn === 'number' ? { minDurationOn } : {}),
+      ...(typeof minDurationOff === 'number' ? { minDurationOff } : {}),
     });
 
     log.info('[diarization] spawning runner', { runnerPath, execPath: process.execPath });

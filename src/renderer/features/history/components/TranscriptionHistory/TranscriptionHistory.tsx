@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import { History, Trash2, X, Inbox, Clock, Search } from 'lucide-react';
 import { Button } from '../../../../components/ui';
-import { formatDate, formatDuration } from '../../../../utils';
+import { formatDate, formatDuration, formatTranscriptLabel } from '../../../../utils';
 import { getLanguageLabel } from '../../../../config';
 import { useTranslation } from '../../../../i18n';
 import './TranscriptionHistory.css';
@@ -42,6 +42,7 @@ function TranscriptionHistory({
 
     return history.filter((item) => {
       const searchable = [
+        item.displayName ?? '',
         item.fileName,
         item.preview,
         item.fullText,
@@ -182,7 +183,12 @@ function TranscriptionHistory({
                     onKeyDown={(e) => handleItemKeyDown(e, item)}
                   >
                     <div className="history-item-header">
-                      <span className="history-filename">{item.fileName}</span>
+                      <span className="history-filename">
+                        {formatTranscriptLabel({
+                          displayName: item.displayName,
+                          fileName: item.fileName,
+                        })}
+                      </span>
                       <div className="history-item-header-actions">
                         <span className="history-date">{formatDate(item.date)}</span>
                         <Button
@@ -205,7 +211,9 @@ function TranscriptionHistory({
                         <Clock size={12} aria-hidden="true" /> {formatDuration(item.duration)}
                       </span>
                     </div>
-                    <p className="history-preview">{item.preview}</p>
+                    {/* Preview line removed by request — only the file
+                        name (rendered above as the row title) and the
+                        meta tags are shown for each history entry. */}
                   </div>
                 ))}
               </div>

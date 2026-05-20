@@ -85,7 +85,13 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     resumePersistedQueue,
     startProcessing,
     retryFailed,
+    retryItem,
+    cancelCurrentItem,
     cancelProcessing,
+    pendingDuplicates,
+    confirmDuplicate,
+    dismissDuplicate,
+    renameItem,
     triggerDiarize,
     cancelDiarize,
     diarizeQueueLength,
@@ -158,15 +164,18 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       } else {
         setDiarization(null);
       }
-      // History items hydrated from a previous session no longer have a
-      // live audioId — the audio cache is session-scoped. The renderer
-      // will treat this as "rerun diarization is unavailable until you
-      // reload the audio".
-      setAudioId(item.audioId ?? null);
+      // The audioId is session-scoped, never persisted to history. We
+      // try to re-link by looking up the live queue for a matching item
+      // id — if the user is in the same session that transcribed this
+      // file, the queue still holds the live audioId. Otherwise we go
+      // null and the DiarizationTab surfaces the "audio not available"
+      // banner / unavailable state.
+      const liveQueueItem = queue.find((q) => q.id === item.id);
+      setAudioId(liveQueueItem?.result?.audioId ?? null);
       setSelectedQueueItemId(item.id);
       setShowHistory(false);
     },
-    [setTranscription, setSelectedFile, setShowHistory, setDiarization, setAudioId]
+    [queue, setTranscription, setSelectedFile, setShowHistory, setDiarization, setAudioId]
   );
 
   const updateCurrentDiarization = useCallback(
@@ -214,12 +223,30 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     await retryFailed();
   }, [retryFailed]);
 
+  const handleRetryItem = useCallback(
+    async (id: string): Promise<void> => {
+      await retryItem(id);
+    },
+    [retryItem]
+  );
+
   const handleCancel = useCallback(async (): Promise<void> => {
     await cancelProcessing();
   }, [cancelProcessing]);
 
   const removeFromQueue = useCallback(
     (id: string): void => {
+      const item = queue.find((q) => q.id === id);
+      // For a currently-running transcribe the X means "skip THIS file
+      // and move on" — cancel the sub-process but leave the batch loop
+      // (and the card itself) intact. The loop will mark the item as
+      // 'cancelled' once it sees the cancellation propagate, and the
+      // reload icon on the card lets the user retry later.
+      if (item?.status === 'processing') {
+        void cancelCurrentItem();
+        return;
+      }
+
       removeFile(id);
       if (selectedQueueItemId === id) {
         // The file leaves the queue but the transcript that was produced
@@ -239,16 +266,15 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
         setAudioId(null);
       }
     },
-    [removeFile, selectedQueueItemId, audioId, setAudioId]
+    [removeFile, queue, cancelCurrentItem, selectedQueueItemId, audioId, setAudioId]
   );
 
   const clearCompletedFromQueue = useCallback((): void => {
-    // Mirror the single-item removal contract: clearing the queue cards
-    // does NOT wipe the displayed transcript/diarization/selectedFile.
-    // Users repeatedly complained that hitting "Pulisci" made the work
-    // disappear from the right panel — but they probably just wanted to
-    // tidy the sidebar. The result they care about stays visible until
-    // they explicitly load a different transcript from history.
+    // Pulisci is now a hard reset to a "clean" state per the user's
+    // request: confirm + wipe everything visible on screen. The
+    // single-card X still preserves the transcript; Pulisci does not.
+    // (Confirmation is handled by the FileQueue caller, which surfaces
+    // the modal before calling us.)
     clearCompleted();
     if (audioId) {
       window.electronAPI?.diarizeReleaseAudio?.(audioId).catch(() => {
@@ -257,7 +283,10 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     }
     setSelectedQueueItemId(null);
     setAudioId(null);
-  }, [clearCompleted, audioId, setAudioId]);
+    setTranscription('');
+    setSelectedFile(null);
+    setDiarization(null);
+  }, [clearCompleted, audioId, setAudioId, setTranscription, setSelectedFile, setDiarization]);
 
   const { selectQueueItem: baseSelectQueueItem } = useQueueSelection(
     queue,
@@ -306,7 +335,14 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
   // through this wrapper so we can interpose a confirmation when other
   // jobs are still in flight (the modal is owned by the tab UI itself).
   const handleTriggerDiarize = useCallback(
-    (params: { numClusters?: number; threshold?: number }) => {
+    (params: {
+      numClusters?: number;
+      threshold?: number;
+      minDurationOn?: number;
+      minDurationOff?: number;
+      minDurationRatio?: number;
+      minRun?: number;
+    }) => {
       if (!selectedQueueItemId) return;
       triggerDiarize(selectedQueueItemId, params);
     },
@@ -332,6 +368,20 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       deleteDiarizationVersion(selectedQueueItemId, versionId);
     },
     [selectedQueueItemId, deleteDiarizationVersion]
+  );
+
+  const renameSelectedItem = useCallback(
+    (displayName: string) => {
+      if (!selectedQueueItemId) return;
+      const trimmed = displayName.trim();
+      // Mirror into both the live queue and the persisted history entry
+      // so the new label survives session restarts.
+      renameItem(selectedQueueItemId, trimmed);
+      updateHistoryItem(selectedQueueItemId, {
+        displayName: trimmed.length > 0 ? trimmed : undefined,
+      });
+    },
+    [selectedQueueItemId, renameItem, updateHistoryItem]
   );
 
   const pendingTranscribeCount = queue.filter(
@@ -406,6 +456,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       diarization,
       audioId,
       selectedItemDiarization: selectedItem?.diarization ?? null,
+      selectedItemDisplayName: selectedItem?.displayName ?? null,
       pendingTranscribeCount,
       diarizeQueueLength,
       currentDiarizeItemId,
@@ -413,6 +464,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       error,
       modelDownloaded,
       duplicateFilesSkipped,
+      pendingDuplicates,
       estimatedTimeRemainingSec,
       showQueueResumePrompt,
       restoredQueueItemsCount,
@@ -428,6 +480,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       diarization,
       audioId,
       selectedItem?.diarization,
+      selectedItem?.displayName,
       pendingTranscribeCount,
       diarizeQueueLength,
       currentDiarizeItemId,
@@ -435,6 +488,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       error,
       modelDownloaded,
       duplicateFilesSkipped,
+      pendingDuplicates,
       estimatedTimeRemainingSec,
       showQueueResumePrompt,
       restoredQueueItemsCount,
@@ -451,10 +505,13 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setModelDownloaded,
       handleTranscribe,
       handleRetryFailed,
+      handleRetryItem,
       handleCancel,
       handleSave,
       handleCopy: onCopy,
       handleFilesSelect,
+      confirmDuplicate,
+      dismissDuplicate,
       removeFromQueue,
       clearCompletedFromQueue,
       selectQueueItem,
@@ -467,6 +524,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       cancelSelectedItemDiarize: handleCancelDiarize,
       setSelectedItemActiveDiarizationVersion: handleSetActiveVersion,
       deleteSelectedItemDiarizationVersion: handleDeleteVersion,
+      renameSelectedItem,
     }),
     [
       setSelectedFile,
@@ -474,10 +532,13 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setModelDownloaded,
       handleTranscribe,
       handleRetryFailed,
+      handleRetryItem,
       handleCancel,
       handleSave,
       onCopy,
       handleFilesSelect,
+      confirmDuplicate,
+      dismissDuplicate,
       removeFromQueue,
       clearCompletedFromQueue,
       selectQueueItem,
@@ -490,6 +551,7 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       handleCancelDiarize,
       handleSetActiveVersion,
       handleDeleteVersion,
+      renameSelectedItem,
     ]
   );
 

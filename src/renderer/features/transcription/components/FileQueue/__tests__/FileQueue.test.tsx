@@ -224,13 +224,17 @@ describe('FileQueue', () => {
       expect(screen.queryByText('FILES (1)')).not.toBeInTheDocument();
     });
 
-    it('should not call onRemove when disabled', () => {
+    it('should call onRemove even when the queue is marked disabled (per-item X is always interactive)', () => {
       const onRemove = vi.fn();
       render(<FileQueue {...defaultProps} onRemove={onRemove} disabled={true} />);
 
+      // The X used to be gated by the FileQueue-level disabled flag, but
+      // that prevented the user from skipping the running task. The X is
+      // now always clickable; the parent decides what removal means for
+      // the item's current status.
       const removeButton = screen.getByLabelText('Remove audio.mp3 from queue');
       fireEvent.click(removeButton);
-      expect(onRemove).not.toHaveBeenCalled();
+      expect(onRemove).toHaveBeenCalled();
     });
 
     it('should highlight selected item', () => {
@@ -252,13 +256,29 @@ describe('FileQueue', () => {
       expect(screen.queryByText(/Clear/)).not.toBeInTheDocument();
     });
 
-    it('should call onClearCompleted when clicking clear button', () => {
+    it('should call onClearCompleted only after confirming the clear modal', () => {
       const onClearCompleted = vi.fn();
       const queue = [createMockQueueItem({ status: 'completed' })];
       render(<FileQueue {...defaultProps} queue={queue} onClearCompleted={onClearCompleted} />);
 
-      fireEvent.click(screen.getByText(/Clear/));
+      // First click opens the confirm modal — onClearCompleted must NOT
+      // fire yet, because the user can still back out.
+      fireEvent.click(screen.getByRole('button', { name: /^Clear$/ }));
+      expect(onClearCompleted).not.toHaveBeenCalled();
+
+      // Confirming via "Clear all" actually triggers the wipe.
+      fireEvent.click(screen.getByRole('button', { name: /Clear all/i }));
       expect(onClearCompleted).toHaveBeenCalled();
+    });
+
+    it('should NOT call onClearCompleted when the user cancels the confirm modal', () => {
+      const onClearCompleted = vi.fn();
+      const queue = [createMockQueueItem({ status: 'completed' })];
+      render(<FileQueue {...defaultProps} queue={queue} onClearCompleted={onClearCompleted} />);
+
+      fireEvent.click(screen.getByRole('button', { name: /^Clear$/ }));
+      fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
+      expect(onClearCompleted).not.toHaveBeenCalled();
     });
   });
 

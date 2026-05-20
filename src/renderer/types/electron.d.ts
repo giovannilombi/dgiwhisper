@@ -20,6 +20,9 @@ export interface DiarizeRunParams {
   numClusters?: number;
   threshold?: number;
   minDurationRatio?: number;
+  minDurationOn?: number;
+  minDurationOff?: number;
+  minRun?: number;
 }
 
 export type DiarizeRunResponse =

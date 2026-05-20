@@ -120,8 +120,37 @@ function DiarizationTab(): React.JSX.Element {
     const v = selectedItemDiarization?.params?.threshold;
     return typeof v === 'number' ? v.toFixed(2) : '0.50';
   });
+  // 4 additional advanced knobs exposed in Personalizzata. Each stored
+  // as the string the slider holds; we parse on launch. Defaults mirror
+  // the backend defaults so the slider position always reflects what
+  // would be applied if the user pressed Avvia right now.
+  const [minDurationOnStr, setMinDurationOnStr] = useState<string>(() => {
+    const v = selectedItemDiarization?.params?.minDurationOn;
+    return typeof v === 'number' ? v.toFixed(2) : '0.60';
+  });
+  const [minDurationOffStr, setMinDurationOffStr] = useState<string>(() => {
+    const v = selectedItemDiarization?.params?.minDurationOff;
+    return typeof v === 'number' ? v.toFixed(2) : '0.70';
+  });
+  const [minDurationRatioStr, setMinDurationRatioStr] = useState<string>(() => {
+    const v = selectedItemDiarization?.params?.minDurationRatio;
+    return typeof v === 'number' ? v.toFixed(2) : '0.05';
+  });
+  const [minRunStr, setMinRunStr] = useState<string>(() => {
+    const v = selectedItemDiarization?.params?.minRun;
+    return typeof v === 'number' ? String(v) : '6';
+  });
   const [showConfirm, setShowConfirm] = useState(false);
   const [showCapModal, setShowCapModal] = useState(false);
+
+  const resetParamsToDefaults = () => {
+    setSpeakerChoice('auto');
+    setThresholdStr('0.50');
+    setMinDurationOnStr('0.60');
+    setMinDurationOffStr('0.70');
+    setMinDurationRatioStr('0.05');
+    setMinRunStr('6');
+  };
 
   // Rotating "we're working on it" message while the job is running. We
   // step through the existing 20 messages every 10 seconds — long enough
@@ -157,7 +186,14 @@ function DiarizationTab(): React.JSX.Element {
   };
 
   const launch = () => {
-    const params: { numClusters?: number; threshold?: number } = {};
+    const params: {
+      numClusters?: number;
+      threshold?: number;
+      minDurationOn?: number;
+      minDurationOff?: number;
+      minDurationRatio?: number;
+      minRun?: number;
+    } = {};
     if (mode === 'custom') {
       if (speakerChoice !== 'auto') {
         const n = Number.parseInt(speakerChoice, 10);
@@ -165,6 +201,14 @@ function DiarizationTab(): React.JSX.Element {
       }
       const th = Number.parseFloat(thresholdStr);
       if (Number.isFinite(th) && th > 0) params.threshold = th;
+      const mdOn = Number.parseFloat(minDurationOnStr);
+      if (Number.isFinite(mdOn) && mdOn > 0) params.minDurationOn = mdOn;
+      const mdOff = Number.parseFloat(minDurationOffStr);
+      if (Number.isFinite(mdOff) && mdOff > 0) params.minDurationOff = mdOff;
+      const ratio = Number.parseFloat(minDurationRatioStr);
+      if (Number.isFinite(ratio) && ratio >= 0) params.minDurationRatio = ratio;
+      const mr = Number.parseInt(minRunStr, 10);
+      if (Number.isFinite(mr) && mr >= 1) params.minRun = mr;
     }
     triggerSelectedItemDiarize(params);
   };
@@ -187,25 +231,37 @@ function DiarizationTab(): React.JSX.Element {
 
   const runningMessageKey = RUNNING_MESSAGE_KEYS[msgIndex % RUNNING_MESSAGE_KEYS.length] ?? null;
 
-  // Unavailable states
+  // Unavailable states. Both branches share the same root cause —
+  // audioId is null — but the right CTA differs depending on whether we
+  // already have a saved diarization to look at.
   if (!audioId && !activeVersion) {
     return (
       <div className="diarization-tab unavailable">
         <Info size={28} aria-hidden="true" className="diarization-tab-unavailable-icon" />
-        <h3>{t('diarization.tab.unavailable.title')}</h3>
-        <p>{t('diarization.tab.unavailable.body')}</p>
+        <h3>{t('diarization.tab.history.title')}</h3>
+        <p>{t('diarization.tab.history.body')}</p>
       </div>
     );
   }
   if (!audioId && activeVersion) {
     // History case: transcript is here, but audio was wiped between
-    // sessions. Show the result we have and an explicit note.
+    // sessions. Show the saved versions chips + the result we have so
+    // the user can keep refining labels, with an explicit banner that
+    // a NEW diarization run requires re-loading the source audio.
     return (
       <div className="diarization-tab">
         <div className="diarization-tab-stale-banner">
           <Info size={16} aria-hidden="true" />
-          <span>{t('diarization.tab.unavailable.session')}</span>
+          <span>{t('diarization.tab.history.staleEdit')}</span>
         </div>
+        {versions.length > 0 && (
+          <VersionsStrip
+            versions={versions}
+            activeId={activeVersion?.id}
+            onSelect={setSelectedItemActiveDiarizationVersion}
+            onDelete={deleteSelectedItemDiarizationVersion}
+          />
+        )}
         {diarization && (
           <SpeakerLabeledTranscript
             segments={diarization.segments}
@@ -253,10 +309,22 @@ function DiarizationTab(): React.JSX.Element {
           <p className="diarization-tab-preset-summary">{t('diarization.tab.preset.summary')}</p>
         ) : (
           <div className="diarization-tab-custom">
-            <div className="diarization-tab-row">
-              <label htmlFor="diar-tab-speakers">
-                {t('diarization.tab.custom.speakers.label')}
-              </label>
+            <div className="diarization-tab-custom-header">
+              <button
+                type="button"
+                className="diarization-tab-reset"
+                onClick={resetParamsToDefaults}
+                disabled={isBusy}
+              >
+                {t('diarization.tab.custom.reset')}
+              </button>
+            </div>
+
+            <ParamField
+              id="diar-tab-speakers"
+              label={t('diarization.tab.custom.speakers.label')}
+              hint={t('diarization.tab.custom.speakers.hint')}
+            >
               <select
                 id="diar-tab-speakers"
                 value={speakerChoice}
@@ -270,11 +338,14 @@ function DiarizationTab(): React.JSX.Element {
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="diarization-tab-row">
-              <label htmlFor="diar-tab-threshold">
-                {t('diarization.tab.custom.threshold.label', { value: thresholdStr })}
-              </label>
+            </ParamField>
+
+            <ParamField
+              id="diar-tab-threshold"
+              label={t('diarization.tab.custom.threshold.label', { value: thresholdStr })}
+              hint={t('diarization.tab.custom.threshold.hint')}
+              dim={speakerChoice !== 'auto'}
+            >
               <input
                 id="diar-tab-threshold"
                 type="range"
@@ -285,8 +356,80 @@ function DiarizationTab(): React.JSX.Element {
                 onChange={(e) => setThresholdStr(e.target.value)}
                 disabled={isBusy || speakerChoice !== 'auto'}
               />
-            </div>
-            <p className="diarization-tab-hint">{t('diarization.tab.custom.threshold.hint')}</p>
+            </ParamField>
+
+            <ParamField
+              id="diar-tab-min-on"
+              label={t('diarization.tab.custom.minOn.label', { value: `${minDurationOnStr}s` })}
+              hint={t('diarization.tab.custom.minOn.hint')}
+              warning={t('diarization.tab.custom.segParam.warning')}
+            >
+              <input
+                id="diar-tab-min-on"
+                type="range"
+                min="0.1"
+                max="3.0"
+                step="0.1"
+                value={minDurationOnStr}
+                onChange={(e) => setMinDurationOnStr(e.target.value)}
+                disabled={isBusy}
+              />
+            </ParamField>
+
+            <ParamField
+              id="diar-tab-min-off"
+              label={t('diarization.tab.custom.minOff.label', { value: `${minDurationOffStr}s` })}
+              hint={t('diarization.tab.custom.minOff.hint')}
+              warning={t('diarization.tab.custom.segParam.warning')}
+            >
+              <input
+                id="diar-tab-min-off"
+                type="range"
+                min="0.1"
+                max="2.0"
+                step="0.1"
+                value={minDurationOffStr}
+                onChange={(e) => setMinDurationOffStr(e.target.value)}
+                disabled={isBusy}
+              />
+            </ParamField>
+
+            <ParamField
+              id="diar-tab-min-ratio"
+              label={t('diarization.tab.custom.minRatio.label', {
+                value: `${Math.round(Number.parseFloat(minDurationRatioStr) * 100)}%`,
+              })}
+              hint={t('diarization.tab.custom.minRatio.hint')}
+              dim={speakerChoice !== 'auto'}
+            >
+              <input
+                id="diar-tab-min-ratio"
+                type="range"
+                min="0"
+                max="0.2"
+                step="0.01"
+                value={minDurationRatioStr}
+                onChange={(e) => setMinDurationRatioStr(e.target.value)}
+                disabled={isBusy || speakerChoice !== 'auto'}
+              />
+            </ParamField>
+
+            <ParamField
+              id="diar-tab-min-run"
+              label={t('diarization.tab.custom.minRun.label', { value: minRunStr })}
+              hint={t('diarization.tab.custom.minRun.hint')}
+            >
+              <input
+                id="diar-tab-min-run"
+                type="range"
+                min="1"
+                max="20"
+                step="1"
+                value={minRunStr}
+                onChange={(e) => setMinRunStr(e.target.value)}
+                disabled={isBusy}
+              />
+            </ParamField>
           </div>
         )}
 
@@ -471,6 +614,35 @@ interface ModeChipProps {
   checked: boolean;
   disabled: boolean;
   onChange: () => void;
+}
+
+interface ParamFieldProps {
+  id: string;
+  label: string;
+  hint: string;
+  warning?: string;
+  dim?: boolean;
+  children: React.ReactNode;
+}
+
+function ParamField({
+  id,
+  label,
+  hint,
+  warning,
+  dim,
+  children,
+}: ParamFieldProps): React.JSX.Element {
+  return (
+    <div className={`diarization-tab-param${dim ? ' dim' : ''}`}>
+      <label htmlFor={id} className="diarization-tab-param-label">
+        {label}
+      </label>
+      {children}
+      <p className="diarization-tab-param-hint">{hint}</p>
+      {warning && <p className="diarization-tab-param-warning">{warning}</p>}
+    </div>
+  );
 }
 
 function ModeChip({ label, icon, checked, disabled, onChange }: ModeChipProps): React.JSX.Element {

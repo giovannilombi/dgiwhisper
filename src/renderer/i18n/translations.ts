@@ -154,6 +154,11 @@ export const en: Dict = {
     'Speaker identification runs on a transcribed audio. Transcribe this file from the queue, then come back here to identify speakers.',
   'diarization.tab.unavailable.session':
     'The original audio of this transcript is no longer in cache (transcribed in a previous session). To re-run speaker identification, drop the same audio in the queue again and transcribe it.',
+  'diarization.tab.history.title': 'Audio no longer available',
+  'diarization.tab.history.body':
+    'This transcript was loaded from History. The source audio was wiped at the end of its session, so speaker identification cannot run. To identify speakers: drop the same audio file in the queue on the left, transcribe it again, then open this tab on the new transcript.',
+  'diarization.tab.history.staleEdit':
+    'You can still edit the labels of the saved runs below. For a NEW identification with different parameters you need the source audio — drop the same file in the queue and transcribe it again.',
   'diarization.tab.mode.label': 'Settings',
   'diarization.tab.mode.preset': 'Recommended',
   'diarization.tab.mode.custom': 'Custom',
@@ -163,6 +168,23 @@ export const en: Dict = {
   'diarization.tab.custom.threshold.label': 'Threshold ({value})',
   'diarization.tab.custom.threshold.hint':
     'Lower = more clusters, higher = fewer. Only used in auto-detect.',
+  'diarization.tab.custom.speakers.hint':
+    'Force exactly N clusters, or let the algorithm guess via the threshold below. Forcing a count is the most reliable option when you know how many people are in the recording.',
+  'diarization.tab.custom.minOn.label': 'Minimum speech duration ({value})',
+  'diarization.tab.custom.minOn.hint':
+    'Shortest speech chunk pyannote will emit. Higher = longer, more stable embeddings (better clusters) but very brief interjections may be absorbed into silence. Lower = catches short turns but the embeddings are noisier.',
+  'diarization.tab.custom.minOff.label': 'Minimum silence to split a turn ({value})',
+  'diarization.tab.custom.minOff.hint':
+    'How long a silence must last to count as a boundary between two turns of the same speaker. Higher = breath pauses are merged into one turn (less fragmented). Lower = every short pause becomes a new boundary.',
+  'diarization.tab.custom.minRatio.label': 'Drop micro-clusters below ({value})',
+  'diarization.tab.custom.minRatio.hint':
+    'Clusters whose total speaking time is below this fraction of the audio are merged into the temporally closest speaker. Higher = more aggressive culling (good for cleaning up spurious speakers); lower = keeps even minor participants. Only used in auto-detect.',
+  'diarization.tab.custom.minRun.label': 'Token smoothing window ({value} tokens)',
+  'diarization.tab.custom.minRun.hint':
+    'After clustering, runs of N or fewer tokens of one speaker flanked by the SAME other speaker on both sides are absorbed (typical noisy single-word flips). Higher = corrects longer mis-classifications but may flatten real short interjections.',
+  'diarization.tab.custom.segParam.warning':
+    'Changing this invalidates the embedding cache — the next run will be slow (full ML pass).',
+  'diarization.tab.custom.reset': 'Reset to recommended values',
   'diarization.tab.start': 'Start identification',
   'diarization.tab.restart': 'Re-run',
   'diarization.tab.cancel': 'Skip',
@@ -189,6 +211,10 @@ export const en: Dict = {
   // Right panel tabs (Phase 2)
   'rightPanel.tabsAriaLabel': 'Workspace panel',
   'rightPanel.tab.transcript': 'Transcript',
+  'rightPanel.rename.edit': 'Rename this transcript',
+  'rightPanel.rename.save': 'Save name',
+  'rightPanel.rename.cancel': 'Cancel rename',
+  'rightPanel.rename.inputAria': 'Custom transcript name',
 
   // Speaker labeled transcript
   'diarization.transcript.banner.one': '{count} speaker detected',
@@ -282,10 +308,23 @@ export const en: Dict = {
   'queue.item.selectAria': 'Select {name} to view transcription',
   'queue.item.removeAria': 'Remove {name} from queue',
   'queue.item.removeTitle': 'Remove from queue',
+  'queue.item.skipTitle': 'Skip this transcription and move on',
   'queue.item.removedFailed': 'Removed failed item: {error}',
   'queue.item.eta': 'Estimated time: ~{duration}',
   'queue.item.diarizing': 'Speaker identification in progress',
   'queue.item.diarizeQueued': 'Speaker identification queued',
+  'queue.item.retryTitle': 'Restart the transcription of this file',
+  'queue.item.retryAria': 'Restart transcription of {name}',
+  'queue.clear.confirm.title': 'Clear everything?',
+  'queue.clear.confirm.body':
+    'Removes every completed or cancelled file from the queue AND clears the transcript and speakers panel on the right. Past transcripts stay in History.',
+  'queue.clear.confirm.ok': 'Clear all',
+  'queue.clear.confirm.cancel': 'Cancel',
+  'duplicate.alert.title': '{name}',
+  'duplicate.alert.question':
+    'This file has already been transcribed in this session. Process it again?',
+  'duplicate.alert.confirm': 'Transcribe again',
+  'duplicate.alert.dismiss': 'Dismiss',
   'queue.summary.completed': '{count} completed',
   'queue.summary.processing': '{count} processing',
   'queue.summary.pending': '{count} pending',
@@ -615,6 +654,11 @@ export const it: Dict = {
     "L'individuazione speaker parte da un audio trascritto. Trascrivi questo file dalla coda e poi torna qui per identificare gli speaker.",
   'diarization.tab.unavailable.session':
     "L'audio originale di questa trascrizione non è più in cache (trascritto in una sessione precedente). Per rifare l'individuazione speaker, ricarica lo stesso audio nella coda e ri-trascrivilo.",
+  'diarization.tab.history.title': 'Audio non più disponibile',
+  'diarization.tab.history.body':
+    "Questa trascrizione è stata caricata dalla Cronologia. Il file audio sorgente è stato eliminato alla fine della sua sessione, quindi l'individuazione speaker non può girare. Per identificare gli speaker: trascina lo stesso file audio nella coda a sinistra, ri-trascrivilo e poi apri questa tab sulla nuova trascrizione.",
+  'diarization.tab.history.staleEdit':
+    'Puoi comunque modificare le etichette dei run salvati qui sotto. Per una NUOVA individuazione con parametri diversi serve il file audio sorgente — trascina lo stesso file nella coda e ri-trascrivilo.',
   'diarization.tab.mode.label': 'Impostazione',
   'diarization.tab.mode.preset': 'Predefinita',
   'diarization.tab.mode.custom': 'Personalizzata',
@@ -624,6 +668,23 @@ export const it: Dict = {
   'diarization.tab.custom.threshold.label': 'Threshold ({value})',
   'diarization.tab.custom.threshold.hint':
     'Più basso = più cluster, più alto = meno cluster. Usato solo in auto-rilevamento.',
+  'diarization.tab.custom.speakers.hint':
+    "Forza esattamente N cluster, oppure lascia indovinare all'algoritmo tramite il threshold qui sotto. Forzare il numero è l'opzione più affidabile quando sai quante persone ci sono nella registrazione.",
+  'diarization.tab.custom.minOn.label': 'Durata minima parlato ({value})',
+  'diarization.tab.custom.minOn.hint':
+    'Lunghezza minima di un frammento parlato che pyannote rileva. Più alto = finestre più lunghe, embedding più stabili (cluster migliori) ma interjezioni brevi possono essere assorbite nel silenzio. Più basso = cattura turni brevi ma gli embedding sono più rumorosi.',
+  'diarization.tab.custom.minOff.label': 'Silenzio minimo per separare i turni ({value})',
+  'diarization.tab.custom.minOff.hint':
+    'Quanto deve durare un silenzio per contare come boundary tra due turni dello stesso parlante. Più alto = le pause respiratorie vengono fuse in un solo turno (meno frammentato). Più basso = ogni piccola pausa diventa un nuovo boundary.',
+  'diarization.tab.custom.minRatio.label': 'Elimina micro-cluster sotto ({value})',
+  'diarization.tab.custom.minRatio.hint':
+    "I cluster con durata totale sotto questa frazione dell'audio vengono assorbiti nello speaker temporalmente più vicino. Più alto = pulizia più aggressiva (utile per micro-cluster spuri); più basso = tiene anche partecipanti minoritari. Usato solo in auto-rilevamento.",
+  'diarization.tab.custom.minRun.label': 'Finestra di smoothing token ({value} token)',
+  'diarization.tab.custom.minRun.hint':
+    'Dopo il clustering, le run di N o meno token di uno speaker circondate dallo STESSO altro speaker su entrambi i lati vengono assorbite (tipici flip rumorosi su singole parole). Più alto = corregge errori più lunghi ma può lisciare interjezioni vere brevi.',
+  'diarization.tab.custom.segParam.warning':
+    'Cambiare questo invalida la cache degli embedding — il prossimo run sarà lento (passaggio ML completo).',
+  'diarization.tab.custom.reset': 'Ripristina valori consigliati',
   'diarization.tab.start': 'Avvia individuazione',
   'diarization.tab.restart': 'Riapplica',
   'diarization.tab.cancel': 'Skip',
@@ -650,6 +711,10 @@ export const it: Dict = {
   // Right panel tabs (Fase 2)
   'rightPanel.tabsAriaLabel': 'Pannello workspace',
   'rightPanel.tab.transcript': 'Trascrizione',
+  'rightPanel.rename.edit': 'Rinomina questa trascrizione',
+  'rightPanel.rename.save': 'Salva nome',
+  'rightPanel.rename.cancel': 'Annulla rinomina',
+  'rightPanel.rename.inputAria': 'Nome personalizzato della trascrizione',
 
   // Speaker labeled transcript
   'diarization.transcript.banner.one': '{count} speaker identificato',
@@ -745,10 +810,23 @@ export const it: Dict = {
   'queue.item.selectAria': 'Seleziona {name} per vedere la trascrizione',
   'queue.item.removeAria': 'Rimuovi {name} dalla coda',
   'queue.item.removeTitle': 'Rimuovi dalla coda',
+  'queue.item.skipTitle': 'Skippa questa trascrizione e passa alla prossima',
   'queue.item.removedFailed': 'Elemento fallito rimosso: {error}',
   'queue.item.eta': 'Tempo stimato: ~{duration}',
   'queue.item.diarizing': 'Individuazione speaker in corso',
   'queue.item.diarizeQueued': 'Individuazione speaker in coda',
+  'queue.item.retryTitle': 'Riavvia la trascrizione di questo file',
+  'queue.item.retryAria': 'Riavvia la trascrizione di {name}',
+  'queue.clear.confirm.title': 'Pulisci tutto?',
+  'queue.clear.confirm.body':
+    'Rimuove dalla coda ogni file completato o annullato E svuota la trascrizione e il pannello speaker a destra. Le trascrizioni passate restano in Cronologia.',
+  'queue.clear.confirm.ok': 'Pulisci tutto',
+  'queue.clear.confirm.cancel': 'Annulla',
+  'duplicate.alert.title': '{name}',
+  'duplicate.alert.question':
+    'Questo file è già stato trascritto in questa sessione. Procediamo comunque?',
+  'duplicate.alert.confirm': 'Ri-trascrivi',
+  'duplicate.alert.dismiss': 'Ignora',
   'queue.summary.completed': '{count} completati',
   'queue.summary.processing': '{count} in corso',
   'queue.summary.pending': '{count} in attesa',

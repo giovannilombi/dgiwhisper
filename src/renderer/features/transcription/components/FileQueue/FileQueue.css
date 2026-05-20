@@ -245,13 +245,67 @@
   color: var(--text-muted);
 }
 
-.file-queue-item-remove {
+.file-queue-item-trailing {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.file-queue-item-remove,
+.file-queue-item-retry {
   opacity: 0;
   transition: opacity var(--transition-fast);
 }
 
-.file-queue-item:hover .file-queue-item-remove {
+.file-queue-item:hover .file-queue-item-remove,
+.file-queue-item:hover .file-queue-item-retry,
+.file-queue-item.error .file-queue-item-retry,
+.file-queue-item.cancelled .file-queue-item-retry {
   opacity: 1;
+}
+
+.file-queue-item-retry {
+  color: var(--accent);
+}
+
+.file-queue-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.file-queue-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  width: min(420px, 92vw);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.3);
+}
+
+.file-queue-modal h3 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+.file-queue-modal p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.file-queue-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .file-queue-toast {

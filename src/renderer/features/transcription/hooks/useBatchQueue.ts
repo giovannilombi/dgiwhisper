@@ -47,6 +47,10 @@ interface UseBatchQueueOptions {
 export interface DiarizeJobParams {
   numClusters?: number;
   threshold?: number;
+  minDurationOn?: number;
+  minDurationOff?: number;
+  minDurationRatio?: number;
+  minRun?: number;
 }
 
 interface UseBatchQueueReturn {
@@ -67,12 +71,36 @@ interface UseBatchQueueReturn {
 
   startProcessing: () => Promise<void>;
   retryFailed: () => Promise<void>;
+  /** Re-queue exactly one error/cancelled item and immediately try to
+   *  resume processing if nothing else is running. The existing
+   *  "Retry Failed" button bulk-retries every error/cancelled item;
+   *  this is the per-card affordance the user kicks off via the reload
+   *  icon on a single queue card. */
+  retryItem: (id: string) => Promise<void>;
+  /** Cancel ONLY the currently-running transcribe sub-process; the
+   *  batch loop is left intact and will move on to the next pending
+   *  item. Used by the per-card X button when the user wants to skip a
+   *  single transcription without aborting the whole batch. */
+  cancelCurrentItem: () => Promise<void>;
   cancelProcessing: () => Promise<void>;
 
   /** Enqueue or immediately start a diarization job for a transcribed item. */
   triggerDiarize: (itemId: string, params: DiarizeJobParams) => void;
   /** Cancel the running or queued diarization job for an item ("skip"). */
   cancelDiarize: (itemId: string) => Promise<void>;
+  /** Set or clear the user-chosen display name of a queue item. Pass
+   *  an empty/whitespace string to reset to the original file name. */
+  renameItem: (id: string, displayName: string) => void;
+  /** Files dropped that match an existing queue entry. Held aside in a
+   *  pending-confirmation list rather than silently skipped, so the UI
+   *  can surface a yellow alert that lets the user opt-in to re-process
+   *  the same source. */
+  pendingDuplicates: SelectedFile[];
+  /** Re-add a duplicate as a fresh queue item (force-add despite the
+   *  existing entry with the same path/fingerprint). */
+  confirmDuplicate: (file: SelectedFile) => void;
+  /** Discard a pending duplicate from the alert list without adding it. */
+  dismissDuplicate: (file: SelectedFile) => void;
   /** Diarization jobs waiting OR running (used by the pre-launch modal). */
   diarizeQueueLength: number;
   /** id of the currently-running diarization job, if any. */
@@ -412,6 +440,7 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentItemId, setCurrentItemId] = useState<string | null>(null);
   const [duplicateFilesSkipped, setDuplicateFilesSkipped] = useState(0);
+  const [pendingDuplicates, setPendingDuplicates] = useState<SelectedFile[]>([]);
   const [estimatedTimeRemainingSec, setEstimatedTimeRemainingSec] = useState<number | null>(null);
   const [showQueueResumePrompt, setShowQueueResumePrompt] = useState(false);
   const [restoredQueueItemsCount, setRestoredQueueItemsCount] = useState(0);
@@ -538,12 +567,15 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
 
   const addFiles = useCallback((files: SelectedFile[]) => {
     const existingKeys = new Set(queueRef.current.map((item) => getFileIdentityKey(item.file)));
-    const duplicateFiles: SelectedFile[] = [];
+    const newDuplicates: SelectedFile[] = [];
 
     const newItems: QueueItem[] = files.reduce<QueueItem[]>((items, file) => {
       const identityKey = getFileIdentityKey(file);
       if (existingKeys.has(identityKey)) {
-        duplicateFiles.push(file);
+        // Park duplicates in the pending-confirmation list instead of
+        // silently dropping them — the user gets a yellow alert and
+        // can re-add explicitly.
+        newDuplicates.push(file);
         return items;
       }
 
@@ -567,14 +599,58 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
       });
     }
 
-    setDuplicateFilesSkipped(duplicateFiles.length);
+    setDuplicateFilesSkipped(newDuplicates.length);
 
-    if (duplicateFiles.length > 0) {
-      logger.warn('Skipped duplicate files in batch queue', {
-        count: duplicateFiles.length,
-        files: duplicateFiles.map((file) => file.name),
+    if (newDuplicates.length > 0) {
+      // De-duplicate within the newly-dropped batch AND against the
+      // existing pending list — the user gets one alert per unique
+      // file no matter how many times it appeared in their drop.
+      setPendingDuplicates((prev) => {
+        const seen = new Set(prev.map((f) => getFileIdentityKey(f)));
+        const fresh: SelectedFile[] = [];
+        for (const f of newDuplicates) {
+          const key = getFileIdentityKey(f);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          fresh.push(f);
+        }
+        return fresh.length === 0 ? prev : [...prev, ...fresh];
+      });
+      logger.info('Duplicate files detected — awaiting user confirmation', {
+        count: newDuplicates.length,
+        files: newDuplicates.map((f) => f.name),
       });
     }
+  }, []);
+
+  const renameItem = useCallback((id: string, displayName: string) => {
+    const trimmed = displayName.trim();
+    shouldPersistQueueRef.current = true;
+    setQueue((prev) =>
+      prev.map((q) =>
+        q.id === id ? { ...q, displayName: trimmed.length > 0 ? trimmed : undefined } : q
+      )
+    );
+  }, []);
+
+  const confirmDuplicate = useCallback((file: SelectedFile) => {
+    const identityKey = getFileIdentityKey(file);
+    const newItem: QueueItem = {
+      id: generateId(),
+      file,
+      status: 'pending' as QueueItemStatus,
+      progress: { percent: 0, status: '' },
+    };
+    shouldPersistQueueRef.current = true;
+    queueRef.current = [...queueRef.current, newItem];
+    setQueue((prev) => [...prev, newItem]);
+    setPendingDuplicates((prev) => prev.filter((f) => getFileIdentityKey(f) !== identityKey));
+    logger.info('User confirmed duplicate re-add', { file: file.name });
+  }, []);
+
+  const dismissDuplicate = useCallback((file: SelectedFile) => {
+    const identityKey = getFileIdentityKey(file);
+    setPendingDuplicates((prev) => prev.filter((f) => getFileIdentityKey(f) !== identityKey));
   }, []);
 
   const removeFile = useCallback((id: string) => {
@@ -610,6 +686,12 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
 
   const processItem = useCallback(
     async (item: QueueItem): Promise<QueueItem> => {
+      // The user may have hit X on this item between when the batch
+      // snapshot was taken and now (per-item X is allowed mid-batch).
+      // Bail out before we spawn whisper on a file the user removed.
+      if (!queueRef.current.some((q) => q.id === item.id)) {
+        return { ...item, status: 'cancelled' as QueueItemStatus, endTime: Date.now() };
+      }
       const startTime = Date.now();
 
       shouldPersistQueueRef.current = true;
@@ -725,7 +807,11 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
             duration: Math.round((endTime - startTime) / 1000),
             preview: result.text.substring(0, 100) + (result.text.length > 100 ? '...' : ''),
             fullText: result.text,
-            ...(result.audioId ? { audioId: result.audioId } : {}),
+            // audioId is intentionally NOT persisted into history — it
+            // points at a session-scoped cache entry that's gone the
+            // next time the app starts, and persisting it would make
+            // the DiarizationTab think it can still run on a stale
+            // transcript when it actually cannot.
             ...(result.segments ? { segments: result.segments } : {}),
             ...(result.speakers !== undefined ? { speakerCount: result.speakers } : {}),
           };
@@ -884,9 +970,47 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
     await runProcessing(['cancelled', 'error'], 'No failed items to retry');
   }, [dismissQueueResumePrompt, runProcessing]);
 
+  const retryItem = useCallback(
+    async (id: string) => {
+      // Reset only THIS item's status to pending; clear residual error
+      // metadata so the queue card looks clean again. Then kick off
+      // processing — runProcessing also includes any other
+      // pending/error/cancelled items still in the queue, which matches
+      // the existing "Retry Failed" semantics.
+      shouldPersistQueueRef.current = true;
+      setQueue((prev) =>
+        prev.map((q) =>
+          q.id === id && (q.status === 'error' || q.status === 'cancelled')
+            ? {
+                ...q,
+                status: 'pending' as QueueItemStatus,
+                error: undefined,
+                endTime: undefined,
+              }
+            : q
+        )
+      );
+      dismissQueueResumePrompt();
+      // Defer to the next tick so the setQueue above is flushed before
+      // runProcessing reads the queue snapshot.
+      await Promise.resolve();
+      await runProcessing(['pending', 'cancelled', 'error'], 'No items to retry');
+    },
+    [dismissQueueResumePrompt, runProcessing]
+  );
+
   const resumePersistedQueue = useCallback(async () => {
     await startProcessing();
   }, [startProcessing]);
+
+  const cancelCurrentItem = useCallback(async () => {
+    // Fire-and-forget cancel on the main-process child. We do NOT touch
+    // isCancelledRef so the batch loop's own iteration continues —
+    // processItem will receive cancelled=true, mark the queue item as
+    // 'cancelled', and the outer for-loop moves on to the next pending
+    // file.
+    await cancelTranscription();
+  }, []);
 
   const cancelProcessing = useCallback(async () => {
     if (!isProcessing) return;
@@ -1167,7 +1291,14 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
 
     startProcessing,
     retryFailed,
+    retryItem,
+    cancelCurrentItem,
     cancelProcessing,
+
+    pendingDuplicates,
+    confirmDuplicate,
+    dismissDuplicate,
+    renameItem,
 
     triggerDiarize,
     cancelDiarize,

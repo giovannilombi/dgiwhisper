@@ -1,7 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle, Loader, Clock, XCircle, Slash, X, Trash2, RotateCcw } from 'lucide-react';
+import {
+  CheckCircle,
+  Loader,
+  Clock,
+  XCircle,
+  Slash,
+  X,
+  Trash2,
+  RotateCcw,
+  RotateCw,
+} from 'lucide-react';
 import { Button } from '../../../../components/ui';
-import { formatFileSize } from '../../../../utils';
+import { formatFileSize, formatTranscriptLabel } from '../../../../utils';
 import type { QueueItem, QueueItemStatus, TranscriptionProgress } from '../../../../types';
 import { toUserFriendlyTranscriptionError } from '../../utils/errorMessages';
 import { useTranslation, type TranslationKey } from '../../../../i18n';
@@ -63,6 +73,8 @@ export interface FileQueueProps {
   onRemove: (id: string) => void;
   onClearCompleted: () => void;
   onRetryFailed: () => void;
+  /** Re-queue a single error/cancelled item and resume processing. */
+  onRetryItem?: (id: string) => void;
   onSelectItem?: (id: string) => void;
   selectedItemId?: string | null;
   estimatedTimeRemainingSec?: number | null;
@@ -110,6 +122,7 @@ function FileQueue({
   onRemove,
   onClearCompleted,
   onRetryFailed,
+  onRetryItem,
   onSelectItem,
   selectedItemId,
   estimatedTimeRemainingSec = null,
@@ -117,6 +130,7 @@ function FileQueue({
 }: FileQueueProps): React.JSX.Element | null {
   const { t } = useTranslation();
   const [removeErrorToastMessage, setRemoveErrorToastMessage] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [diarizingMessageIndex, setDiarizingMessageIndex] = useState(0);
   const removeErrorToastTimeoutRef = useRef<number | null>(null);
 
@@ -186,7 +200,10 @@ function FileQueue({
 
   const handleRemoveClick = (e: React.MouseEvent, item: QueueItem): void => {
     e.stopPropagation();
-    if (disabled || item.status === 'processing') return;
+    // Per-item X is always allowed, even while a batch is running.
+    // The semantics depend on item.status — for a processing item the
+    // remove handler will interpret it as "skip and move on"; for
+    // anything else it just removes the card.
 
     if (item.status === 'error' && item.error) {
       const friendlyError = toUserFriendlyTranscriptionError(item.error, t);
@@ -218,7 +235,7 @@ function FileQueue({
               variant="ghost"
               size="sm"
               icon={<Trash2 size={14} />}
-              onClick={onClearCompleted}
+              onClick={() => setShowClearConfirm(true)}
               disabled={disabled}
               title={t('queue.header.clearTitle')}
             >
@@ -265,7 +282,12 @@ function FileQueue({
               )}
             </div>
             <div className="file-queue-item-content">
-              <span className="file-queue-item-name">{item.file.name}</span>
+              <span className="file-queue-item-name">
+                {formatTranscriptLabel({
+                  displayName: item.displayName,
+                  fileName: item.file.name,
+                })}
+              </span>
               {/* Diarization runs after transcription on a completed item,
                   in a separate queue. Surface its status in plain text so
                   the spinner isn't the only cue — the user explicitly
@@ -331,17 +353,41 @@ function FileQueue({
                 <span className="file-queue-item-size">{formatFileSize(item.file.size)}</span>
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<X size={14} />}
-              iconOnly
-              onClick={(e) => handleRemoveClick(e, item)}
-              disabled={disabled || item.status === 'processing'}
-              title={t('queue.item.removeTitle')}
-              aria-label={t('queue.item.removeAria', { name: item.file.name })}
-              className="file-queue-item-remove"
-            />
+            <div className="file-queue-item-trailing">
+              {/* Per-item reload icon: appears only when the user just
+                  interrupted or watched a transcribe fail. Click to
+                  re-queue this specific item as pending and immediately
+                  kick the processing loop. */}
+              {(item.status === 'error' || item.status === 'cancelled') && onRetryItem && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<RotateCw size={14} />}
+                  iconOnly
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRetryItem(item.id);
+                  }}
+                  title={t('queue.item.retryTitle')}
+                  aria-label={t('queue.item.retryAria', { name: item.file.name })}
+                  className="file-queue-item-retry"
+                />
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<X size={14} />}
+                iconOnly
+                onClick={(e) => handleRemoveClick(e, item)}
+                title={
+                  item.status === 'processing'
+                    ? t('queue.item.skipTitle')
+                    : t('queue.item.removeTitle')
+                }
+                aria-label={t('queue.item.removeAria', { name: item.file.name })}
+                className="file-queue-item-remove"
+              />
+            </div>
           </div>
         ))}
       </div>
@@ -381,6 +427,30 @@ function FileQueue({
           <span className="hint">{t('queue.empty.hint')}</span>
         )}
       </div>
+
+      {showClearConfirm && (
+        <div className="file-queue-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="file-queue-modal">
+            <h3>{t('queue.clear.confirm.title')}</h3>
+            <p>{t('queue.clear.confirm.body')}</p>
+            <div className="file-queue-modal-actions">
+              <Button variant="ghost" size="sm" onClick={() => setShowClearConfirm(false)}>
+                {t('queue.clear.confirm.cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setShowClearConfirm(false);
+                  onClearCompleted();
+                }}
+              >
+                {t('queue.clear.confirm.ok')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

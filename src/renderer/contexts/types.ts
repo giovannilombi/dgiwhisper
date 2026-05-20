@@ -48,6 +48,8 @@ export interface TranscriptionStateContextValue {
   audioId: string | null;
   /** Diarization job state of the currently-selected queue item. */
   selectedItemDiarization: DiarizationJobState | null;
+  /** User-chosen display name for the currently-selected transcript, if set. */
+  selectedItemDisplayName: string | null;
   /** Count of files still pending or being transcribed (drives the
    *  pre-diarize "you'll have to wait" modal). */
   pendingTranscribeCount: number;
@@ -59,6 +61,7 @@ export interface TranscriptionStateContextValue {
   error: string | null;
   modelDownloaded: boolean;
   duplicateFilesSkipped: number;
+  pendingDuplicates: SelectedFile[];
   estimatedTimeRemainingSec: number | null;
   showQueueResumePrompt: boolean;
   restoredQueueItemsCount: number;
@@ -73,10 +76,13 @@ export interface TranscriptionActionsContextValue {
   setModelDownloaded: (downloaded: boolean) => void;
   handleTranscribe: () => Promise<void>;
   handleRetryFailed: () => Promise<void>;
+  handleRetryItem: (id: string) => Promise<void>;
   handleCancel: () => Promise<void>;
   handleSave: (format?: OutputFormat, contentOverride?: string) => Promise<void>;
   handleCopy: () => Promise<void>;
   handleFilesSelect: (files: SelectedFile[]) => void;
+  confirmDuplicate: (file: SelectedFile) => void;
+  dismissDuplicate: (file: SelectedFile) => void;
   removeFromQueue: (id: string) => void;
   clearCompletedFromQueue: () => void;
   selectQueueItem: (id: string) => void;
@@ -89,9 +95,18 @@ export interface TranscriptionActionsContextValue {
   runDiarization: (params?: { numClusters?: number; threshold?: number }) => Promise<void>;
   cancelDiarization: () => Promise<void>;
   /** Enqueue diarization for the currently-selected queue item. */
-  triggerSelectedItemDiarize: (params: { numClusters?: number; threshold?: number }) => void;
+  triggerSelectedItemDiarize: (params: {
+    numClusters?: number;
+    threshold?: number;
+    minDurationOn?: number;
+    minDurationOff?: number;
+    minDurationRatio?: number;
+    minRun?: number;
+  }) => void;
   /** Cancel/skip the currently-selected item's running or queued diarize. */
   cancelSelectedItemDiarize: () => Promise<void>;
+  /** Rename the transcript displayed on the right. Pass empty string to reset. */
+  renameSelectedItem: (displayName: string) => void;
   /** Switch the active diarization version for the selected item. */
   setSelectedItemActiveDiarizationVersion: (versionId: string) => void;
   /** Delete a saved diarization version from the selected item. */

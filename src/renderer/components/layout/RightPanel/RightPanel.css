@@ -45,3 +45,23 @@
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
+
+.right-panel-file-header-rename {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.right-panel-file-header:hover .right-panel-file-header-rename {
+  opacity: 1;
+}
+
+.right-panel-file-header-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  font: inherit;
+}

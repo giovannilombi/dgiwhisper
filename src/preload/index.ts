@@ -16,6 +16,9 @@ interface DiarizeParams {
   numClusters?: number;
   threshold?: number;
   minDurationRatio?: number;
+  minDurationOn?: number;
+  minDurationOff?: number;
+  minRun?: number;
 }
 
 contextBridge.exposeInMainWorld('electronAPI', {
