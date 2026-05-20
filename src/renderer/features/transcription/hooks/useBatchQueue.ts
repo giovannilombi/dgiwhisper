@@ -30,6 +30,11 @@ interface UseBatchQueueOptions {
   ) => void;
 }
 
+export interface DiarizeJobParams {
+  numClusters?: number;
+  threshold?: number;
+}
+
 interface UseBatchQueueReturn {
   queue: QueueItem[];
   isProcessing: boolean;
@@ -49,6 +54,15 @@ interface UseBatchQueueReturn {
   startProcessing: () => Promise<void>;
   retryFailed: () => Promise<void>;
   cancelProcessing: () => Promise<void>;
+
+  /** Enqueue or immediately start a diarization job for a transcribed item. */
+  triggerDiarize: (itemId: string, params: DiarizeJobParams) => void;
+  /** Cancel the running or queued diarization job for an item ("skip"). */
+  cancelDiarize: (itemId: string) => Promise<void>;
+  /** Diarization jobs waiting OR running (used by the pre-launch modal). */
+  diarizeQueueLength: number;
+  /** id of the currently-running diarization job, if any. */
+  currentDiarizeItemId: string | null;
 
   getCompletedTranscription: (id: string) => string | undefined;
   getCompletedDiarization: (id: string) => DiarizationState | undefined;
@@ -398,6 +412,23 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
   const etaSamplesRef = useRef<EtaSample[]>([]);
   const lastProgressPercentRef = useRef<number>(0);
   const etaIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Diarization queue — a strictly serial sub-queue that runs AFTER any
+  // pending transcribes. The scheduler logic is intentionally simple:
+  // (a) the renderer-side queue is single-consumer (only one job in flight),
+  // (b) transcribes always have priority (we don't start a diarize while
+  //     transcribes are in progress or queued), (c) skip = cancel with the
+  //     existing cancel button, leaving the item in 'cancelled' for the
+  //     user to retry via the existing UI.
+  interface DiarizeJob {
+    itemId: string;
+    params: DiarizeJobParams;
+  }
+  const diarizeJobsRef = useRef<DiarizeJob[]>([]);
+  const [currentDiarizeItemId, setCurrentDiarizeItemId] = useState<string | null>(null);
+  const [diarizeQueueLength, setDiarizeQueueLength] = useState(0);
+  const isDrainingDiarizeRef = useRef(false);
+  const isProcessingRef = useRef(false);
 
   useEffect(() => {
     const restoredCount = initialQueueLengthRef.current;
@@ -871,6 +902,147 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
     logger.warn('Batch processing cancelled by user');
   }, [isProcessing]);
 
+  // Keep isProcessingRef in sync with the state so the diarize scheduler
+  // can check it from inside callbacks without needing to subscribe.
+  useEffect(() => {
+    isProcessingRef.current = isProcessing;
+    if (!isProcessing) {
+      // A transcription run just finished — there may be diarize jobs
+      // waiting in the wings.
+      void drainDiarizeQueue();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProcessing]);
+
+  const updateItemDiarization = useCallback(
+    (itemId: string, patch: Partial<NonNullable<QueueItem['diarization']>>) => {
+      shouldPersistQueueRef.current = false;
+      setQueue((prev) =>
+        prev.map((q) =>
+          q.id === itemId
+            ? {
+                ...q,
+                diarization: {
+                  status: 'idle',
+                  ...q.diarization,
+                  ...patch,
+                },
+              }
+            : q
+        )
+      );
+    },
+    []
+  );
+
+  const drainDiarizeQueue = useCallback(async () => {
+    if (isDrainingDiarizeRef.current) return;
+    if (isProcessingRef.current) return; // transcriptions take priority
+    const job = diarizeJobsRef.current[0];
+    if (!job) return;
+
+    isDrainingDiarizeRef.current = true;
+    setCurrentDiarizeItemId(job.itemId);
+
+    const item = queueRef.current.find((q) => q.id === job.itemId);
+    const audioId = item?.result?.audioId;
+
+    if (!audioId) {
+      updateItemDiarization(job.itemId, {
+        status: 'error',
+        error: 'Audio non disponibile in cache. Re-trascrivi il file per poter diarizzare.',
+      });
+      diarizeJobsRef.current.shift();
+      setDiarizeQueueLength(diarizeJobsRef.current.length);
+      setCurrentDiarizeItemId(null);
+      isDrainingDiarizeRef.current = false;
+      void drainDiarizeQueue();
+      return;
+    }
+
+    updateItemDiarization(job.itemId, {
+      status: 'running',
+      params: job.params,
+      startedAt: new Date().toISOString(),
+      error: undefined,
+    });
+
+    try {
+      const api = window.electronAPI;
+      if (!api?.diarizeRun) throw new Error('Diarization IPC non disponibile.');
+      const response = await api.diarizeRun(audioId, job.params);
+      if (!response.success) {
+        updateItemDiarization(job.itemId, { status: 'error', error: response.error });
+      } else if ('cancelled' in response && response.cancelled) {
+        updateItemDiarization(job.itemId, { status: 'cancelled' });
+      } else {
+        updateItemDiarization(job.itemId, {
+          status: 'completed',
+          params: job.params,
+          result: {
+            segments: response.segments,
+            speakerCount: response.speakerCount,
+            strategy: response.strategy,
+            cached: response.cached,
+            completedAt: new Date().toISOString(),
+          },
+          error: undefined,
+        });
+      }
+    } catch (err) {
+      updateItemDiarization(job.itemId, {
+        status: 'error',
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      diarizeJobsRef.current.shift();
+      setDiarizeQueueLength(diarizeJobsRef.current.length);
+      setCurrentDiarizeItemId(null);
+      isDrainingDiarizeRef.current = false;
+      // Drain again — there may be a chain of diarize jobs queued up.
+      void drainDiarizeQueue();
+    }
+  }, [updateItemDiarization]);
+
+  const triggerDiarize = useCallback(
+    (itemId: string, params: DiarizeJobParams) => {
+      // De-duplicate: if a job for this item is already queued or
+      // running, replace its params instead of stacking a new job.
+      const existingIdx = diarizeJobsRef.current.findIndex((j) => j.itemId === itemId);
+      if (existingIdx >= 0) {
+        diarizeJobsRef.current[existingIdx] = { itemId, params };
+      } else {
+        diarizeJobsRef.current.push({ itemId, params });
+      }
+      setDiarizeQueueLength(diarizeJobsRef.current.length);
+      updateItemDiarization(itemId, { status: 'queued', params, error: undefined });
+      void drainDiarizeQueue();
+    },
+    [drainDiarizeQueue, updateItemDiarization]
+  );
+
+  const cancelDiarize = useCallback(
+    async (itemId: string) => {
+      // Remove any pending job for this item from the queue.
+      const beforeLen = diarizeJobsRef.current.length;
+      diarizeJobsRef.current = diarizeJobsRef.current.filter((j) => j.itemId !== itemId);
+      if (diarizeJobsRef.current.length !== beforeLen) {
+        setDiarizeQueueLength(diarizeJobsRef.current.length);
+      }
+      // If THIS item is currently running, ask the main process to cancel.
+      if (currentDiarizeItemId === itemId) {
+        const api = window.electronAPI;
+        try {
+          await api?.diarizeCancel?.();
+        } catch {
+          /* ignore — best effort */
+        }
+      }
+      updateItemDiarization(itemId, { status: 'cancelled' });
+    },
+    [currentDiarizeItemId, updateItemDiarization]
+  );
+
   const getCompletedTranscription = useCallback(
     (id: string): string | undefined => {
       const item = queue.find((q) => q.id === id);
@@ -916,6 +1088,11 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
     startProcessing,
     retryFailed,
     cancelProcessing,
+
+    triggerDiarize,
+    cancelDiarize,
+    diarizeQueueLength,
+    currentDiarizeItemId,
 
     getCompletedTranscription,
     getCompletedDiarization,

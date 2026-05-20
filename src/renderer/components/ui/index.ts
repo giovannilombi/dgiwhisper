@@ -8,3 +8,5 @@ export { DebugLogsModal } from './DebugLogsModal';
 export type { DebugLogsModalProps } from './DebugLogsModal';
 export { HelpModal } from './HelpModal';
 export type { HelpModalProps } from './HelpModal';
+export { Tabs } from './Tabs';
+export type { TabDescriptor, TabsProps } from './Tabs';

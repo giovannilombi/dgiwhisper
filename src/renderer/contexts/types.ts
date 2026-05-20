@@ -5,6 +5,7 @@ import type {
   OutputFormat,
   QueueItem,
   TranscribedSegment,
+  DiarizationJobState,
 } from '../types';
 import type { Theme } from '../hooks';
 
@@ -45,6 +46,15 @@ export interface TranscriptionStateContextValue {
   diarization: DiarizationContextState | null;
   /** Session-scoped id of the cached audio for the currently-selected transcript. */
   audioId: string | null;
+  /** Diarization job state of the currently-selected queue item. */
+  selectedItemDiarization: DiarizationJobState | null;
+  /** Count of files still pending or being transcribed (drives the
+   *  pre-diarize "you'll have to wait" modal). */
+  pendingTranscribeCount: number;
+  /** Number of diarize jobs queued behind the active one. */
+  diarizeQueueLength: number;
+  /** Queue item id whose diarization is currently running, if any. */
+  currentDiarizeItemId: string | null;
   diarizeStatus: DiarizationRunStatus;
   error: string | null;
   modelDownloaded: boolean;
@@ -78,6 +88,10 @@ export interface TranscriptionActionsContextValue {
   }) => void;
   runDiarization: (params?: { numClusters?: number; threshold?: number }) => Promise<void>;
   cancelDiarization: () => Promise<void>;
+  /** Enqueue diarization for the currently-selected queue item. */
+  triggerSelectedItemDiarize: (params: { numClusters?: number; threshold?: number }) => void;
+  /** Cancel/skip the currently-selected item's running or queued diarize. */
+  cancelSelectedItemDiarize: () => Promise<void>;
 }
 
 export interface TranscriptionContextValue

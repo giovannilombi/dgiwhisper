@@ -158,6 +158,38 @@ export interface DiarizationResult {
 
 export type QueueItemStatus = 'pending' | 'processing' | 'completed' | 'error' | 'cancelled';
 
+export type DiarizationJobStatus =
+  | 'idle' // never run, awaiting user trigger
+  | 'queued' // waiting in the global job queue
+  | 'running' // currently running in the diarize-service
+  | 'completed'
+  | 'cancelled'
+  | 'error';
+
+export interface DiarizationJobState {
+  status: DiarizationJobStatus;
+  /** Last params used (or about to be used). Persisted so the UI can
+   *  show what produced the current result and pre-fill the form on
+   *  next launch. */
+  params?: {
+    numClusters?: number;
+    threshold?: number;
+  };
+  /** Diarized transcript, present when status === 'completed'. */
+  result?: {
+    segments: TranscribedSegment[];
+    speakerCount: number;
+    labels?: Record<number, string>;
+    strategy?: 'channel' | 'sherpa-fresh' | 'sherpa-recluster';
+    cached?: boolean;
+    completedAt: string;
+  };
+  /** Friendly error message when status === 'error'. */
+  error?: string;
+  /** Started timestamp of the current/last run. */
+  startedAt?: string;
+}
+
 export interface QueueItem {
   id: string;
   file: SelectedFile;
@@ -167,6 +199,9 @@ export interface QueueItem {
   error?: string;
   startTime?: number;
   endTime?: number;
+  /** Per-item diarization state. Initially undefined; populated when
+   *  the user first opens the diarization tab or queues a job. */
+  diarization?: DiarizationJobState;
 }
 
 export interface HistoryItem {

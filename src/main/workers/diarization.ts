@@ -50,9 +50,22 @@ function readAllStdin(): Promise<string> {
   });
 }
 
-function emit(payload: RunnerOutput): void {
-  process.stdout.write(JSON.stringify(payload));
-  process.stdout.write('\n');
+/**
+ * Serialize `payload` to stdout and resolve only after the kernel pipe
+ * buffer has actually drained. The embedding payload can be hundreds of
+ * KB while the OS pipe buffer is ~64 KB, so the previous code that
+ * called `process.exit()` right after `write()` was losing everything
+ * past the first 64 KB on the receiving side.
+ */
+function emit(payload: RunnerOutput): Promise<void> {
+  return new Promise((resolve) => {
+    const data = JSON.stringify(payload) + '\n';
+    const flushed = process.stdout.write(data, () => resolve());
+    // If `write()` returned true the data was synchronously written and
+    // the callback will still fire on the next tick — either way the
+    // promise resolves after the byte is actually out.
+    void flushed;
+  });
 }
 
 interface ParsedWav {
@@ -165,7 +178,7 @@ async function main(): Promise<void> {
   try {
     raw = await readAllStdin();
   } catch (err) {
-    emit({ success: false, error: `Failed to read stdin: ${(err as Error).message}` });
+    await emit({ success: false, error: `Failed to read stdin: ${(err as Error).message}` });
     process.exit(1);
   }
 
@@ -173,7 +186,7 @@ async function main(): Promise<void> {
   try {
     input = JSON.parse(raw) as RunnerInput;
   } catch (err) {
-    emit({ success: false, error: `Invalid JSON config: ${(err as Error).message}` });
+    await emit({ success: false, error: `Invalid JSON config: ${(err as Error).message}` });
     process.exit(1);
   }
 
@@ -276,13 +289,13 @@ async function main(): Promise<void> {
       });
     }
 
-    emit({ success: true, segments, embeddings: embeddingsPayload });
+    await emit({ success: true, segments, embeddings: embeddingsPayload });
     process.exit(0);
   } catch (err) {
     log('error', {
       message: err instanceof Error ? err.message : String(err),
     });
-    emit({
+    await emit({
       success: false,
       error: err instanceof Error ? err.message : String(err),
     });

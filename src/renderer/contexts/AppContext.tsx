@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, type ReactNode } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranscription, useBatchQueue, useQueueSelection } from '../features/transcription';
 import { useHistory } from '../features/history';
 import { useTheme, useCopyToClipboard, useElectronMenu } from '../hooks';
@@ -85,6 +85,10 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     startProcessing,
     retryFailed,
     cancelProcessing,
+    triggerDiarize,
+    cancelDiarize,
+    diarizeQueueLength,
+    currentDiarizeItemId,
     getCompletedTranscription,
     getCompletedDiarization,
   } = useBatchQueue({
@@ -176,30 +180,22 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     (id: string): void => {
       removeFile(id);
       if (selectedQueueItemId === id) {
-        // Tell the main process it can free the cached wav and embeddings
-        // associated with this transcript. We don't await — it's
-        // best-effort cleanup and shouldn't block the UI.
+        // The file leaves the queue but the transcript that was produced
+        // stays on the right panel — the user might still want to read,
+        // copy or save it. We only release what becomes meaningless once
+        // the queue card is gone: the active selection, and the cached
+        // audio (which can't be re-diarized anyway). The DiarizationPanel
+        // hides automatically because it's gated on audioId.
         if (audioId) {
           window.electronAPI?.diarizeReleaseAudio?.(audioId).catch(() => {
             /* ignore — cleanup is best-effort */
           });
         }
         setSelectedQueueItemId(null);
-        setTranscription('');
-        setSelectedFile(null);
-        setDiarization(null);
         setAudioId(null);
       }
     },
-    [
-      removeFile,
-      selectedQueueItemId,
-      audioId,
-      setTranscription,
-      setSelectedFile,
-      setDiarization,
-      setAudioId,
-    ]
+    [removeFile, selectedQueueItemId, audioId, setAudioId]
   );
 
   const clearCompletedFromQueue = useCallback((): void => {
@@ -217,7 +213,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     setSelectedFile,
     setSelectedQueueItemId,
     getCompletedDiarization,
-    setDiarization
+    setDiarization,
+    setAudioId
   );
 
   const selectQueueItem = useCallback(
@@ -236,6 +233,42 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     },
     [baseSelectQueueItem, history, setDiarization]
   );
+
+  // Keep the displayed diarization synced with the selected queue item's
+  // per-item diarization state. When a fresh diarization run completes
+  // for the currently-shown item, the renderer should pick it up
+  // automatically — without this effect, the user would have to re-
+  // select the item to see the new clusters.
+  const selectedItem = selectedQueueItemId ? queue.find((q) => q.id === selectedQueueItemId) : null;
+  const selectedItemDiarResult = selectedItem?.diarization?.result;
+  useEffect(() => {
+    if (!selectedItemDiarResult) return;
+    setDiarization({
+      segments: selectedItemDiarResult.segments,
+      speakerCount: selectedItemDiarResult.speakerCount,
+      labels: selectedItemDiarResult.labels,
+    });
+  }, [selectedItemDiarResult, setDiarization]);
+
+  // The DiarizationTab's "predefinita/personalizzata" launch path goes
+  // through this wrapper so we can interpose a confirmation when other
+  // jobs are still in flight (the modal is owned by the tab UI itself).
+  const handleTriggerDiarize = useCallback(
+    (params: { numClusters?: number; threshold?: number }) => {
+      if (!selectedQueueItemId) return;
+      triggerDiarize(selectedQueueItemId, params);
+    },
+    [selectedQueueItemId, triggerDiarize]
+  );
+
+  const handleCancelDiarize = useCallback(async () => {
+    if (!selectedQueueItemId) return;
+    await cancelDiarize(selectedQueueItemId);
+  }, [selectedQueueItemId, cancelDiarize]);
+
+  const pendingTranscribeCount = queue.filter(
+    (q) => q.status === 'processing' || q.status === 'pending'
+  ).length;
 
   useElectronMenu({
     onOpenFile: () => {
@@ -304,6 +337,10 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       transcription,
       diarization,
       audioId,
+      selectedItemDiarization: selectedItem?.diarization ?? null,
+      pendingTranscribeCount,
+      diarizeQueueLength,
+      currentDiarizeItemId,
       diarizeStatus,
       error,
       modelDownloaded,
@@ -322,6 +359,10 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       transcription,
       diarization,
       audioId,
+      selectedItem?.diarization,
+      pendingTranscribeCount,
+      diarizeQueueLength,
+      currentDiarizeItemId,
       diarizeStatus,
       error,
       modelDownloaded,
@@ -354,6 +395,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       updateCurrentDiarization,
       runDiarization,
       cancelDiarization,
+      triggerSelectedItemDiarize: handleTriggerDiarize,
+      cancelSelectedItemDiarize: handleCancelDiarize,
     }),
     [
       setSelectedFile,
@@ -373,6 +416,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       updateCurrentDiarization,
       runDiarization,
       cancelDiarization,
+      handleTriggerDiarize,
+      handleCancelDiarize,
     ]
   );
 

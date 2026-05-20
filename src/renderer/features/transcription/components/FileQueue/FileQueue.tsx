@@ -243,7 +243,27 @@ function FileQueue({
               }
             }}
           >
-            <div className="file-queue-item-status">{getStatusIcon(item.status)}</div>
+            <div className="file-queue-item-status">
+              {getStatusIcon(item.status)}
+              {/* Phase 2: diarization runs independently of transcription.
+                  Surface its status on completed items as a small badge
+                  next to the transcribe check so the user can see
+                  "diarizzazione in corso" without leaving the sidebar. */}
+              {item.status === 'completed' && item.diarization?.status === 'running' && (
+                <Loader
+                  size={12}
+                  className="status-icon processing spin file-queue-item-diarize-badge"
+                  aria-label={t('queue.item.diarizing')}
+                />
+              )}
+              {item.status === 'completed' && item.diarization?.status === 'queued' && (
+                <Clock
+                  size={12}
+                  className="status-icon pending file-queue-item-diarize-badge"
+                  aria-label={t('queue.item.diarizeQueued')}
+                />
+              )}
+            </div>
             <div className="file-queue-item-content">
               <span className="file-queue-item-name">{item.file.name}</span>
               {item.status === 'processing' && (

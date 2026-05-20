@@ -1,0 +1,1 @@
+export { DiarizationTab } from './DiarizationTab';

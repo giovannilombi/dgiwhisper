@@ -1,1 +1,0 @@
-export { DiarizationPanel } from './DiarizationPanel';

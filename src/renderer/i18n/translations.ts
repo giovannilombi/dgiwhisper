@@ -131,7 +131,47 @@ export const en: Dict = {
   'diarization.info.control.heading': 'You stay in control',
   'diarization.info.control.body':
     'After diarization runs you can rename each speaker, merge two clusters that are the same person, or mark a block as a different speaker. The transcript text is never altered — only the speaker labels change.',
+  'diarization.info.local.title': 'Local model, not perfect accuracy.',
+  'diarization.info.local.body':
+    "The diarization model runs entirely on your Mac — your audio never leaves the device. The trade-off is that, unlike cloud services with constant retraining, the local model can't always match the highest accuracy: expect some misassignments, especially on noisy audio, similar voices, or strong accents.",
   'diarization.info.close': 'Close',
+
+  // Diarization tab (Phase 2)
+  'diarization.tab.title': 'Speaker identification',
+  'diarization.tab.unavailable.title': 'Transcribe this file first',
+  'diarization.tab.unavailable.body':
+    'Speaker identification runs on a transcribed audio. Transcribe this file from the queue, then come back here to identify speakers.',
+  'diarization.tab.unavailable.session':
+    'The original audio of this transcript is no longer in cache (transcribed in a previous session). To re-run speaker identification, drop the same audio in the queue again and transcribe it.',
+  'diarization.tab.mode.label': 'Settings',
+  'diarization.tab.mode.preset': 'Recommended',
+  'diarization.tab.mode.custom': 'Custom',
+  'diarization.tab.preset.summary':
+    'Auto-detect number of speakers, threshold 0.5. Works for most 2–4 speaker recordings.',
+  'diarization.tab.custom.speakers.label': 'Number of speakers',
+  'diarization.tab.custom.threshold.label': 'Threshold ({value})',
+  'diarization.tab.custom.threshold.hint':
+    'Lower = more clusters, higher = fewer. Only used in auto-detect.',
+  'diarization.tab.start': 'Start identification',
+  'diarization.tab.restart': 'Re-run',
+  'diarization.tab.cancel': 'Skip',
+  'diarization.tab.queued': 'Waiting in queue…',
+  'diarization.tab.running': 'Identification in progress…',
+  'diarization.tab.completed.heading': 'Done',
+  'diarization.tab.completed.meta': '{speakers} speakers · {strategy}{cached}',
+  'diarization.tab.completed.cached': ' · cache hit',
+  'diarization.tab.error.heading': 'Identification failed',
+  'diarization.tab.error.retry': 'Retry',
+  'diarization.tab.confirm.title': 'Other jobs are running',
+  'diarization.tab.confirm.body':
+    'Speaker identification can only run one at a time, after the transcriptions in the queue. Wait for them to finish, or skip the running transcriptions to start now (you can resume them later).',
+  'diarization.tab.confirm.wait': 'Wait my turn',
+  'diarization.tab.confirm.skip': 'Skip transcriptions and start now',
+  'diarization.tab.confirm.cancel': 'Cancel',
+
+  // Right panel tabs (Phase 2)
+  'rightPanel.tabsAriaLabel': 'Workspace panel',
+  'rightPanel.tab.transcript': 'Transcript',
 
   // Speaker labeled transcript
   'diarization.transcript.banner.one': '{count} speaker detected',
@@ -227,6 +267,8 @@ export const en: Dict = {
   'queue.item.removeTitle': 'Remove from queue',
   'queue.item.removedFailed': 'Removed failed item: {error}',
   'queue.item.eta': 'Estimated time: ~{duration}',
+  'queue.item.diarizing': 'Speaker identification in progress',
+  'queue.item.diarizeQueued': 'Speaker identification queued',
   'queue.summary.completed': '{count} completed',
   'queue.summary.processing': '{count} processing',
   'queue.summary.pending': '{count} pending',
@@ -533,7 +575,47 @@ export const it: Dict = {
   'diarization.info.control.heading': 'Il controllo resta a te',
   'diarization.info.control.body':
     "Dopo l'identificazione puoi rinominare ogni speaker, unire due cluster che sono la stessa persona, o segnare un blocco come un altro speaker. Il testo della trascrizione non viene mai modificato — cambiano solo le etichette.",
+  'diarization.info.local.title': 'Modello locale, accuratezza non massima.',
+  'diarization.info.local.body':
+    'Il modello di diarizzazione gira interamente sul tuo Mac — il tuo audio non lascia mai il dispositivo. Il compromesso è che, a differenza dei servizi cloud con riaddestramento continuo, il modello locale non può sempre eguagliare la massima accuratezza: aspettati qualche errore di assegnazione, specialmente su audio rumoroso, voci simili o accenti marcati.',
   'diarization.info.close': 'Chiudi',
+
+  // Diarization tab (Fase 2)
+  'diarization.tab.title': 'Individuazione speaker',
+  'diarization.tab.unavailable.title': 'Prima trascrivi questo file',
+  'diarization.tab.unavailable.body':
+    "L'individuazione speaker parte da un audio trascritto. Trascrivi questo file dalla coda e poi torna qui per identificare gli speaker.",
+  'diarization.tab.unavailable.session':
+    "L'audio originale di questa trascrizione non è più in cache (trascritto in una sessione precedente). Per rifare l'individuazione speaker, ricarica lo stesso audio nella coda e ri-trascrivilo.",
+  'diarization.tab.mode.label': 'Impostazione',
+  'diarization.tab.mode.preset': 'Predefinita',
+  'diarization.tab.mode.custom': 'Personalizzata',
+  'diarization.tab.preset.summary':
+    'Auto-rilevamento del numero di speaker, threshold 0.5. Funziona per la maggior parte delle registrazioni da 2 a 4 speaker.',
+  'diarization.tab.custom.speakers.label': 'Numero speaker',
+  'diarization.tab.custom.threshold.label': 'Threshold ({value})',
+  'diarization.tab.custom.threshold.hint':
+    'Più basso = più cluster, più alto = meno cluster. Usato solo in auto-rilevamento.',
+  'diarization.tab.start': 'Avvia individuazione',
+  'diarization.tab.restart': 'Riapplica',
+  'diarization.tab.cancel': 'Skip',
+  'diarization.tab.queued': 'In coda…',
+  'diarization.tab.running': 'Individuazione in corso…',
+  'diarization.tab.completed.heading': 'Fatto',
+  'diarization.tab.completed.meta': '{speakers} speaker · {strategy}{cached}',
+  'diarization.tab.completed.cached': ' · cache hit',
+  'diarization.tab.error.heading': 'Individuazione fallita',
+  'diarization.tab.error.retry': 'Riprova',
+  'diarization.tab.confirm.title': 'Altri processi in corso',
+  'diarization.tab.confirm.body':
+    "L'individuazione speaker può girare una alla volta, dopo le trascrizioni in coda. Aspetta che finiscano, oppure skippa le trascrizioni in corso per partire subito (potrai riprenderle dopo).",
+  'diarization.tab.confirm.wait': 'Aspetto il mio turno',
+  'diarization.tab.confirm.skip': 'Skippa trascrizioni e parti ora',
+  'diarization.tab.confirm.cancel': 'Annulla',
+
+  // Right panel tabs (Fase 2)
+  'rightPanel.tabsAriaLabel': 'Pannello workspace',
+  'rightPanel.tab.transcript': 'Trascrizione',
 
   // Speaker labeled transcript
   'diarization.transcript.banner.one': '{count} speaker identificato',
@@ -631,6 +713,8 @@ export const it: Dict = {
   'queue.item.removeTitle': 'Rimuovi dalla coda',
   'queue.item.removedFailed': 'Elemento fallito rimosso: {error}',
   'queue.item.eta': 'Tempo stimato: ~{duration}',
+  'queue.item.diarizing': 'Individuazione speaker in corso',
+  'queue.item.diarizeQueued': 'Individuazione speaker in coda',
   'queue.summary.completed': '{count} completati',
   'queue.summary.processing': '{count} in corso',
   'queue.summary.pending': '{count} in attesa',

@@ -1,0 +1,68 @@
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 4px;
+}
+
+.tabs-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.tabs-tab:hover:not(.disabled):not(.active) {
+  color: var(--text-primary);
+  border-bottom-color: var(--border);
+}
+
+.tabs-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.tabs-tab.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tabs-tab-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+.tabs-tab-label {
+  white-space: nowrap;
+}
+
+.tabs-tab-busy {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: tabs-tab-busy-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes tabs-tab-busy-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 1;
+  }
+}
