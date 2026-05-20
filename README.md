@@ -11,7 +11,9 @@ Local only, privacy-first AI transcription and diarization.
 ### Added by DGI-Whisper
 
 - **Bundled FFmpeg** - FFmpeg ships inside the app, so the first launch works out of the box. If a newer system FFmpeg is installed (e.g. via Homebrew) it is preferred automatically.
-- **Speaker Diarization (optional)** - Toggle on to automatically identify _who spoke when_. Each transcript segment gets a speaker label, and you can **rename**, **merge** or **split** speakers directly from the UI. Edits persist into the history. Runs fully on-device via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) with [pyannote segmentation 3.0](https://huggingface.co/pyannote/segmentation-3.0) + [3D-Speaker ERes2Net](https://github.com/modelscope/3D-Speaker) embeddings, ONNX models bundled in the DMG (no extra download).
+- **Speaker Diarization (separate flow, opt-in)** - After transcription, switch to the **Individuazione speaker / Speaker identification** tab to run on-device speaker identification on the transcript. Pick _Recommended_ defaults or _Custom_ (auto vs fixed number of speakers + clustering threshold), then start. Re-running with different parameters is **sub-second** thanks to a per-transcript embedding cache. Each transcript keeps up to **3 saved runs** you can flip between or delete. Stereo recordings with one speaker per channel are detected automatically and bypass ML entirely. Runs fully on-device via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) with [pyannote segmentation 3.0](https://huggingface.co/pyannote/segmentation-3.0) + [WeSpeaker ResNet293-LM](https://github.com/wenet-e2e/wespeaker) embeddings (ONNX, bundled). Honest note: the local model has a quality ceiling — expect some mis-attribution on noisy audio, similar voices or strong accents.
+- **Serial job queue** - Transcription and speaker identification compete for the same CPU, so the app runs **one heavy job at a time** globally. Transcriptions always take priority; queued diarizations start as soon as the queue drains. If you need to run a diarization now, the UI prompts to skip the running transcriptions (you can resume them later).
+- **Per-file workspace tabs** - The right panel splits into two tabs per file: **Trascrizione** and **Individuazione speaker**. The diarization tab only appears once a transcript exists. While a diarization runs on file A you can keep transcribing other files; the sidebar shows a small spinner + "Individuazione speaker in corso" on the diarizing file.
 - **Multilingual UI** - Switch between **Italian** and **English** via the flag toggle in the header. The choice persists across sessions. Default is detected from the system locale.
 
 ### Inherited from WhisperDesk
@@ -43,7 +45,7 @@ Local only, privacy-first AI transcription and diarization.
 ## 📋 Requirements
 
 - **macOS** 10.15 (Catalina) or later. The DMG is a universal binary (arm64 + x64), so it runs natively on both Apple Silicon and Intel Macs.
-- ~600MB disk space (for whisper.cpp, the bundled FFmpeg, and the base Whisper model; +45MB if diarization is enabled)
+- ~700MB disk space (for whisper.cpp, the bundled FFmpeg, the base Whisper model, and the diarization models — ~115MB for the pyannote 3.0 segmentation + WeSpeaker ResNet293-LM embedding)
 
 > **Note:** FFmpeg is bundled with the app, no separate install is needed. If a system FFmpeg is present (e.g. installed via Homebrew) it is preferred so you can pick up your own newer version.
 
@@ -82,32 +84,47 @@ xattr -cr /Applications/DGI-Whisper.app
 
 ### 2. Configure the transcription
 
-- **Speaker diarization** — toggle the red/green switch at the top of the Settings panel to enable speaker identification. Click the ⓘ next to it for an in-app explanation of the limits.
 - **Whisper model** — pick the size/quality/speed trade-off (see _Whisper Models_ below). The selected model is downloaded automatically on first use.
 - **Audio language** — `Auto` to let Whisper detect it, or pick from the supported language list.
 - **UI language** — switch the interface between Italian and English with the flag toggle in the top-right header, independently from the audio transcription language.
 
+> Speaker identification is no longer wired into transcription — it's a separate optional step in step 5 below.
+
 ### 3. Transcribe
 
-Click **Transcribe** (or `⌘ Return`) to process the queue. Progress is shown per item, with a live ETA for batches. Click **Cancel** (or `Esc`) at any point — the running item is interrupted and any in-flight diarization worker is terminated immediately.
+Click **Transcribe** (or `⌘ Return`) to process the queue. Progress is shown per item, with a live ETA for batches. Click **Cancel** (or `Esc`) at any point — the running item is interrupted.
 
 ### 4. Review the transcript
 
-When **diarization is off** the transcript appears as a single block. You can:
+The transcript appears in the **Trascrizione / Transcript** tab of the right panel. You can:
 
 - Click any **timestamp** to jump the inline media player to that moment.
 - Use `⌘ F` to open the inline search bar and step through matches.
 - Toggle the media player on/off from the toolbar.
 
-When **diarization is on** the transcript is grouped by speaker block. For each block you can:
+The file name of the transcript you're looking at is always shown in a thin header bar above the tabs, so you can tell which queue item you're working on at a glance.
+
+### 5. Identify speakers (optional)
+
+Once a transcript is ready, a second tab — **Individuazione speaker / Speaker identification** — appears in the right panel. Open it to run speaker diarization on the transcript.
+
+- **Mode** — _Predefinita_ uses the recommended defaults (auto-detect speakers, threshold 0.5). _Personalizzata_ exposes the speaker count (auto or fixed 2–6) and the clustering threshold slider (only meaningful in auto mode).
+- **Start identification** — runs sherpa-onnx with the pyannote + WeSpeaker pipeline. The progress bar is indeterminate (the engine doesn't emit percentage) but a rotating status message and the audio-length-÷-3 ETA give you a sense of how long it'll take.
+- **Re-run is sub-second** — after the first run, the embeddings are cached per-transcript. Switching parameters and re-running just re-clusters in JS, no ML needed.
+- **Up to 3 saved runs per transcript** — every run you start is saved as a version chip with timestamp and params. Click a chip to switch the displayed result, click the trash icon to delete one. The 4th run requires deleting an older one first.
+- **Stereo per-channel shortcut** — for stereo recordings where speaker A is on the left channel and speaker B is on the right (per-channel Zoom exports, telephony, some podcasts), the app detects this and uses channel energy to derive speakers in **milliseconds**, completely bypassing the ML pipeline.
+
+Inside the labeled transcript you can:
 
 - **Rename the speaker** — click the speaker label (e.g. _Speaker 1_) and type the real name (e.g. _Anna_). The change applies to every block of that cluster across the transcript.
 - **Merge speakers** — when the algorithm split one person across multiple clusters, click **Merge** on a block and pick the target speaker from the dropdown. All blocks of the source cluster collapse into the target.
 - **Split a block** — when the algorithm grouped two people into the same cluster, click **Split** on the wrongly-attributed block to assign it a fresh new speaker that you can then rename.
 
-All edits (names, merges, splits) are saved into the transcription history alongside the original diarization, so re-opening a past transcription brings your refined labels back.
+All edits (names, merges, splits) are saved into the transcription history alongside the diarization runs.
 
-### 5. Export
+> **Local model, accuracy ceiling** — the diarization pipeline runs entirely on your Mac, so the audio never leaves the device. The trade-off vs. cloud services is that on noisy audio, similar voices, or strong accents you should expect some misattribution. The in-tab info box surfaces the same caveats.
+
+### 6. Export
 
 Save from the toolbar (or `⌘ S`) and pick a format:
 
@@ -117,9 +134,11 @@ Save from the toolbar (or `⌘ S`) and pick a format:
 
 Alternatively, use **Copy** (or `⌘ C`) to copy the plain transcription text to the clipboard.
 
-### 6. History
+### 7. History
 
-The **History** button in the header (`⌘ H` to toggle) opens the list of every past transcription. Each entry stores the file name, model, language, duration, full text, and — when diarization was on — the speaker segments and your label/merge/split edits. Click any entry to reload it into the main view exactly as you left it.
+The **History** button in the header (`⌘ H` to toggle) opens the list of every past transcription. Each entry stores the file name, model, language, duration, full text, and — when diarization was run — up to 3 saved diarization runs with their parameters and your label/merge/split edits. Click any entry to reload it into the main view exactly as you left it.
+
+> Note on cross-session diarization: the source audio file is cached only for the current app session. If you re-open the app the day after and click a past transcript, the _Individuazione speaker_ tab will show the saved runs but the _Start identification_ button will be unavailable until you re-load the original audio in the queue.
 
 ### Keyboard Shortcuts
 

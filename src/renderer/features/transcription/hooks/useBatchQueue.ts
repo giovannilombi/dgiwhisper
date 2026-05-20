@@ -5,7 +5,9 @@ import type {
   QueueItem,
   QueueItemStatus,
   HistoryItem,
+  DiarizationVersionEntry,
 } from '../../../types';
+import { MAX_DIARIZATION_VERSIONS } from '../../../../shared/types';
 import type { DiarizationState } from './useTranscription';
 import {
   startTranscription,
@@ -27,6 +29,18 @@ interface UseBatchQueueOptions {
     file: SelectedFile,
     diarization?: DiarizationState | null,
     audioId?: string
+  ) => void;
+  /**
+   * Invoked whenever the per-item diarization state changes in a way
+   * that should be mirrored to the persisted history entry (a new run
+   * completed, an old run was deleted, the active version changed).
+   * Lets the AppContext keep the disk-backed history in sync without
+   * useBatchQueue having to know about the history module.
+   */
+  onDiarizationVersionsChange?: (
+    itemId: string,
+    versions: DiarizationVersionEntry[],
+    activeVersionId?: string
   ) => void;
 }
 
@@ -63,6 +77,10 @@ interface UseBatchQueueReturn {
   diarizeQueueLength: number;
   /** id of the currently-running diarization job, if any. */
   currentDiarizeItemId: string | null;
+  /** Switch which saved diarization version is shown / active. */
+  setActiveDiarizationVersion: (itemId: string, versionId: string) => void;
+  /** Drop a saved diarization version from the per-item history. */
+  deleteDiarizationVersion: (itemId: string, versionId: string) => void;
 
   getCompletedTranscription: (id: string) => string | undefined;
   getCompletedDiarization: (id: string) => DiarizationState | undefined;
@@ -387,7 +405,7 @@ function showBatchCompletionNotification(items: QueueItem[]): void {
 }
 
 export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueReturn {
-  const { settings, onHistoryAdd, onFirstComplete } = options;
+  const { settings, onHistoryAdd, onFirstComplete, onDiarizationVersionsChange } = options;
   const { t } = useTranslation();
 
   const [queue, setQueue] = useState<QueueItem[]>(() => loadPersistedQueue());
@@ -976,18 +994,40 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
       } else if ('cancelled' in response && response.cancelled) {
         updateItemDiarization(job.itemId, { status: 'cancelled' });
       } else {
-        updateItemDiarization(job.itemId, {
-          status: 'completed',
+        // Push the new run into the per-item versions list at index 0,
+        // and select it as the active one. The cap is enforced upstream:
+        // if the user already has MAX_DIARIZATION_VERSIONS, the
+        // DiarizationTab forces them to delete one before letting us
+        // enqueue another job, so we never need to evict here.
+        const newVersion: DiarizationVersionEntry = {
+          id: crypto.randomUUID(),
+          createdAt: new Date().toISOString(),
           params: job.params,
-          result: {
-            segments: response.segments,
-            speakerCount: response.speakerCount,
-            strategy: response.strategy,
-            cached: response.cached,
-            completedAt: new Date().toISOString(),
-          },
-          error: undefined,
-        });
+          segments: response.segments,
+          speakerCount: response.speakerCount,
+          strategy: response.strategy,
+          cached: response.cached,
+        };
+        setQueue((prev) =>
+          prev.map((q) => {
+            if (q.id !== job.itemId) return q;
+            const prevVersions = q.diarization?.versions ?? [];
+            const nextVersions = [newVersion, ...prevVersions].slice(0, MAX_DIARIZATION_VERSIONS);
+            // Persist to history out-of-band.
+            onDiarizationVersionsChange?.(q.id, nextVersions, newVersion.id);
+            return {
+              ...q,
+              diarization: {
+                ...q.diarization,
+                status: 'completed',
+                params: job.params,
+                error: undefined,
+                versions: nextVersions,
+                activeVersionId: newVersion.id,
+              },
+            };
+          })
+        );
       }
     } catch (err) {
       updateItemDiarization(job.itemId, {
@@ -1043,6 +1083,46 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
     [currentDiarizeItemId, updateItemDiarization]
   );
 
+  const setActiveDiarizationVersion = useCallback(
+    (itemId: string, versionId: string) => {
+      setQueue((prev) =>
+        prev.map((q) => {
+          if (q.id !== itemId || !q.diarization) return q;
+          onDiarizationVersionsChange?.(q.id, q.diarization.versions ?? [], versionId);
+          return { ...q, diarization: { ...q.diarization, activeVersionId: versionId } };
+        })
+      );
+    },
+    [onDiarizationVersionsChange]
+  );
+
+  const deleteDiarizationVersion = useCallback(
+    (itemId: string, versionId: string) => {
+      setQueue((prev) =>
+        prev.map((q) => {
+          if (q.id !== itemId || !q.diarization?.versions) return q;
+          const nextVersions = q.diarization.versions.filter((v) => v.id !== versionId);
+          const nextActive =
+            q.diarization.activeVersionId === versionId
+              ? (nextVersions[0]?.id ?? undefined)
+              : q.diarization.activeVersionId;
+          const nextStatus = nextVersions.length === 0 ? 'idle' : q.diarization.status;
+          onDiarizationVersionsChange?.(q.id, nextVersions, nextActive);
+          return {
+            ...q,
+            diarization: {
+              ...q.diarization,
+              status: nextStatus,
+              versions: nextVersions,
+              activeVersionId: nextActive,
+            },
+          };
+        })
+      );
+    },
+    [onDiarizationVersionsChange]
+  );
+
   const getCompletedTranscription = useCallback(
     (id: string): string | undefined => {
       const item = queue.find((q) => q.id === id);
@@ -1093,6 +1173,8 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
     cancelDiarize,
     diarizeQueueLength,
     currentDiarizeItemId,
+    setActiveDiarizationVersion,
+    deleteDiarizationVersion,
 
     getCompletedTranscription,
     getCompletedDiarization,

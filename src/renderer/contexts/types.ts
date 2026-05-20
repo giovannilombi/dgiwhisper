@@ -92,6 +92,10 @@ export interface TranscriptionActionsContextValue {
   triggerSelectedItemDiarize: (params: { numClusters?: number; threshold?: number }) => void;
   /** Cancel/skip the currently-selected item's running or queued diarize. */
   cancelSelectedItemDiarize: () => Promise<void>;
+  /** Switch the active diarization version for the selected item. */
+  setSelectedItemActiveDiarizationVersion: (versionId: string) => void;
+  /** Delete a saved diarization version from the selected item. */
+  deleteSelectedItemDiarizationVersion: (versionId: string) => void;
 }
 
 export interface TranscriptionContextValue

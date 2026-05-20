@@ -59,9 +59,14 @@
   background: var(--surface-hover);
 }
 
+/* Selection is a neutral cue — no coloured background, just a left
+   accent border and a faint outline. We deliberately do NOT share the
+   tinted background with the .processing state so the user can tell at
+   a glance "this is what I'm looking at" vs. "this is what the engine
+   is busy with right now". */
 .file-queue-item.selected {
-  background: var(--accent-light);
   border-left: 3px solid var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .file-queue-item.processing {

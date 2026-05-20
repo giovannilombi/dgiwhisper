@@ -4,6 +4,7 @@ import { useHistory } from '../features/history';
 import { useTheme, useCopyToClipboard, useElectronMenu } from '../hooks';
 import { selectAndProcessFiles } from '../utils';
 import type { HistoryItem, SelectedFile, TranscribedSegment } from '../types';
+import { getActiveDiarizationVersion } from '../../shared/types';
 
 function parsePersistedLabels(labels?: Record<string, string>): Record<number, string> | undefined {
   if (!labels) return undefined;
@@ -89,6 +90,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     cancelDiarize,
     diarizeQueueLength,
     currentDiarizeItemId,
+    setActiveDiarizationVersion,
+    deleteDiarizationVersion,
     getCompletedTranscription,
     getCompletedDiarization,
   } = useBatchQueue({
@@ -101,21 +104,60 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       setDiarization(diarizationState ?? null);
       setAudioId(transcriptAudioId ?? null);
     },
+    onDiarizationVersionsChange: (id, versions, activeVersionId) => {
+      // Mirror every per-item diarization mutation (new run completed,
+      // version deleted, active version switched) into the disk-backed
+      // history entry sharing the same id. This way re-opening the app
+      // a session later still finds the same saved runs.
+      updateHistoryItem(id, {
+        diarizationVersions: versions.map((v) => ({
+          id: v.id,
+          createdAt: v.createdAt,
+          params: {
+            numClusters: v.params.numClusters,
+            threshold: v.params.threshold,
+            strategy: v.strategy ?? 'sherpa-fresh',
+          },
+          segments: v.segments,
+          speakerCount: v.speakerCount,
+          labels: v.labels,
+        })),
+        // Legacy fields kept for back-compat with older history items
+        // that the rest of the renderer still reads in places.
+        segments: versions[0]?.segments,
+        speakerCount: versions[0]?.speakerCount,
+      });
+      // activeVersionId itself is not persisted yet — when the user
+      // re-opens a transcript we always start from the newest version.
+      // Mirroring it would require an extra field on HistoryItem and
+      // is not part of the Phase 3 deliverable.
+      void activeVersionId;
+    },
   });
 
   const selectHistoryItem = useCallback(
     (item: HistoryItem): void => {
       setTranscription(item.fullText);
       setSelectedFile({ name: item.fileName, path: item.filePath });
-      setDiarization(
-        item.segments && item.speakerCount !== undefined
-          ? {
-              segments: item.segments,
-              speakerCount: item.speakerCount,
-              labels: parsePersistedLabels(item.speakerLabels),
-            }
-          : null
-      );
+      // Prefer the new diarizationVersions[] (Phase 3). Fall back to the
+      // legacy segments/speakerCount/speakerLabels for items written by
+      // earlier versions of the app.
+      const newestVersion = item.diarizationVersions?.[0];
+      if (newestVersion) {
+        setDiarization({
+          segments: newestVersion.segments,
+          speakerCount: newestVersion.speakerCount,
+          labels: newestVersion.labels,
+        });
+      } else if (item.segments && item.speakerCount !== undefined) {
+        setDiarization({
+          segments: item.segments,
+          speakerCount: item.speakerCount,
+          labels: parsePersistedLabels(item.speakerLabels),
+        });
+      } else {
+        setDiarization(null);
+      }
       // History items hydrated from a previous session no longer have a
       // live audioId — the audio cache is session-scoped. The renderer
       // will treat this as "rerun diarization is unavailable until you
@@ -182,10 +224,12 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       if (selectedQueueItemId === id) {
         // The file leaves the queue but the transcript that was produced
         // stays on the right panel — the user might still want to read,
-        // copy or save it. We only release what becomes meaningless once
-        // the queue card is gone: the active selection, and the cached
-        // audio (which can't be re-diarized anyway). The DiarizationPanel
-        // hides automatically because it's gated on audioId.
+        // copy or save it. We deliberately keep the displayed transcript
+        // text, the selected file (so the inline player still works) and
+        // any diarization result already on screen. Only the live
+        // selection pointer + the cached source audio are released —
+        // the audio could not have been re-diarized anyway once its
+        // queue card is gone.
         if (audioId) {
           window.electronAPI?.diarizeReleaseAudio?.(audioId).catch(() => {
             /* ignore — cleanup is best-effort */
@@ -199,12 +243,21 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
   );
 
   const clearCompletedFromQueue = useCallback((): void => {
+    // Mirror the single-item removal contract: clearing the queue cards
+    // does NOT wipe the displayed transcript/diarization/selectedFile.
+    // Users repeatedly complained that hitting "Pulisci" made the work
+    // disappear from the right panel — but they probably just wanted to
+    // tidy the sidebar. The result they care about stays visible until
+    // they explicitly load a different transcript from history.
     clearCompleted();
+    if (audioId) {
+      window.electronAPI?.diarizeReleaseAudio?.(audioId).catch(() => {
+        /* ignore — cleanup is best-effort */
+      });
+    }
     setSelectedQueueItemId(null);
-    setTranscription('');
-    setSelectedFile(null);
-    setDiarization(null);
-  }, [clearCompleted, setTranscription, setSelectedFile, setDiarization]);
+    setAudioId(null);
+  }, [clearCompleted, audioId, setAudioId]);
 
   const { selectQueueItem: baseSelectQueueItem } = useQueueSelection(
     queue,
@@ -235,20 +288,19 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
   );
 
   // Keep the displayed diarization synced with the selected queue item's
-  // per-item diarization state. When a fresh diarization run completes
-  // for the currently-shown item, the renderer should pick it up
-  // automatically — without this effect, the user would have to re-
-  // select the item to see the new clusters.
+  // active diarization version. When a fresh run completes (or the user
+  // flips the active version chip in the tab) the renderer should pick
+  // it up automatically.
   const selectedItem = selectedQueueItemId ? queue.find((q) => q.id === selectedQueueItemId) : null;
-  const selectedItemDiarResult = selectedItem?.diarization?.result;
+  const selectedItemActiveVersion = getActiveDiarizationVersion(selectedItem?.diarization);
   useEffect(() => {
-    if (!selectedItemDiarResult) return;
+    if (!selectedItemActiveVersion) return;
     setDiarization({
-      segments: selectedItemDiarResult.segments,
-      speakerCount: selectedItemDiarResult.speakerCount,
-      labels: selectedItemDiarResult.labels,
+      segments: selectedItemActiveVersion.segments,
+      speakerCount: selectedItemActiveVersion.speakerCount,
+      labels: selectedItemActiveVersion.labels,
     });
-  }, [selectedItemDiarResult, setDiarization]);
+  }, [selectedItemActiveVersion, setDiarization]);
 
   // The DiarizationTab's "predefinita/personalizzata" launch path goes
   // through this wrapper so we can interpose a confirmation when other
@@ -265,6 +317,22 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     if (!selectedQueueItemId) return;
     await cancelDiarize(selectedQueueItemId);
   }, [selectedQueueItemId, cancelDiarize]);
+
+  const handleSetActiveVersion = useCallback(
+    (versionId: string) => {
+      if (!selectedQueueItemId) return;
+      setActiveDiarizationVersion(selectedQueueItemId, versionId);
+    },
+    [selectedQueueItemId, setActiveDiarizationVersion]
+  );
+
+  const handleDeleteVersion = useCallback(
+    (versionId: string) => {
+      if (!selectedQueueItemId) return;
+      deleteDiarizationVersion(selectedQueueItemId, versionId);
+    },
+    [selectedQueueItemId, deleteDiarizationVersion]
+  );
 
   const pendingTranscribeCount = queue.filter(
     (q) => q.status === 'processing' || q.status === 'pending'
@@ -397,6 +465,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       cancelDiarization,
       triggerSelectedItemDiarize: handleTriggerDiarize,
       cancelSelectedItemDiarize: handleCancelDiarize,
+      setSelectedItemActiveDiarizationVersion: handleSetActiveVersion,
+      deleteSelectedItemDiarizationVersion: handleDeleteVersion,
     }),
     [
       setSelectedFile,
@@ -418,6 +488,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       cancelDiarization,
       handleTriggerDiarize,
       handleCancelDiarize,
+      handleSetActiveVersion,
+      handleDeleteVersion,
     ]
   );
 

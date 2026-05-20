@@ -166,6 +166,32 @@ export type DiarizationJobStatus =
   | 'cancelled'
   | 'error';
 
+/**
+ * Maximum number of diarization runs kept per transcript. Each run
+ * captures the parameters used + the produced segments, so the user
+ * can flip between alternative results (e.g. "auto-detect" vs
+ * "force 3 speakers") without losing previous attempts. The cap
+ * prevents unbounded storage growth on long history.
+ */
+export const MAX_DIARIZATION_VERSIONS = 3;
+
+/**
+ * One saved diarization run. The newest version is always at index 0.
+ */
+export interface DiarizationVersionEntry {
+  id: string;
+  createdAt: string;
+  params: {
+    numClusters?: number;
+    threshold?: number;
+  };
+  segments: TranscribedSegment[];
+  speakerCount: number;
+  labels?: Record<number, string>;
+  strategy?: 'channel' | 'sherpa-fresh' | 'sherpa-recluster';
+  cached?: boolean;
+}
+
 export interface DiarizationJobState {
   status: DiarizationJobStatus;
   /** Last params used (or about to be used). Persisted so the UI can
@@ -175,19 +201,34 @@ export interface DiarizationJobState {
     numClusters?: number;
     threshold?: number;
   };
-  /** Diarized transcript, present when status === 'completed'. */
-  result?: {
-    segments: TranscribedSegment[];
-    speakerCount: number;
-    labels?: Record<number, string>;
-    strategy?: 'channel' | 'sherpa-fresh' | 'sherpa-recluster';
-    cached?: boolean;
-    completedAt: string;
-  };
   /** Friendly error message when status === 'error'. */
   error?: string;
   /** Started timestamp of the current/last run. */
   startedAt?: string;
+  /**
+   * Saved diarization runs for this transcript, newest first, capped
+   * to MAX_DIARIZATION_VERSIONS. The active version is `versions[0]`
+   * unless `activeVersionId` overrides — which the UI sets when the
+   * user clicks a version chip to compare.
+   */
+  versions?: DiarizationVersionEntry[];
+  /** Override pointer; null/undefined means "newest". */
+  activeVersionId?: string;
+}
+
+/**
+ * Resolve which saved version the UI should currently display: the one
+ * the user explicitly selected (if still around) or the newest run.
+ */
+export function getActiveDiarizationVersion(
+  state: DiarizationJobState | undefined | null
+): DiarizationVersionEntry | null {
+  if (!state?.versions || state.versions.length === 0) return null;
+  if (state.activeVersionId) {
+    const match = state.versions.find((v) => v.id === state.activeVersionId);
+    if (match) return match;
+  }
+  return state.versions[0] ?? null;
 }
 
 export interface QueueItem {

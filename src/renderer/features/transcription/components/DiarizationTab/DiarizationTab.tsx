@@ -5,11 +5,12 @@
 // the pre-launch confirmation when other transcribes are still queued.
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Users, X, RefreshCw, Info, Sparkles, Sliders } from 'lucide-react';
+import { Users, X, RefreshCw, Info, Sparkles, Sliders, Trash2 } from 'lucide-react';
 import { Button } from '../../../../components/ui';
 import { useAppTranscription } from '../../../../contexts';
 import { SpeakerLabeledTranscript } from '../SpeakerLabeledTranscript';
 import { useTranslation, type TranslationKey } from '../../../../i18n';
+import { MAX_DIARIZATION_VERSIONS, getActiveDiarizationVersion } from '../../../../../shared/types';
 import './DiarizationTab.css';
 
 type ModeChoice = 'preset' | 'custom';
@@ -88,6 +89,8 @@ function DiarizationTab(): React.JSX.Element {
     isTranscribing,
     triggerSelectedItemDiarize,
     cancelSelectedItemDiarize,
+    setSelectedItemActiveDiarizationVersion,
+    deleteSelectedItemDiarizationVersion,
     handleCancel: cancelAllTranscribes,
     updateCurrentDiarization,
   } = useAppTranscription();
@@ -96,6 +99,9 @@ function DiarizationTab(): React.JSX.Element {
   const isRunning = status === 'running';
   const isQueued = status === 'queued';
   const isBusy = isRunning || isQueued;
+  const activeVersion = getActiveDiarizationVersion(selectedItemDiarization);
+  const versions = selectedItemDiarization?.versions ?? [];
+  const reachedCap = versions.length >= MAX_DIARIZATION_VERSIONS;
 
   const initialMode: ModeChoice =
     selectedItemDiarization?.params && Object.keys(selectedItemDiarization.params).length > 0
@@ -115,6 +121,7 @@ function DiarizationTab(): React.JSX.Element {
     return typeof v === 'number' ? v.toFixed(2) : '0.50';
   });
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showCapModal, setShowCapModal] = useState(false);
 
   // Rotating "we're working on it" message while the job is running. We
   // step through the existing 20 messages every 10 seconds — long enough
@@ -132,6 +139,13 @@ function DiarizationTab(): React.JSX.Element {
   }, [isRunning]);
 
   const handleStart = () => {
+    // Cap reached → force the user to delete a version first. We could
+    // auto-evict the oldest, but the spec says "max 3, delete one to
+    // continue" precisely so the user notices and curates.
+    if (reachedCap) {
+      setShowCapModal(true);
+      return;
+    }
     // If transcribes are still in-flight, intercept with the confirm
     // modal — the diarize would otherwise just sit in 'queued' until
     // the transcribes drain, and the user might not realise why.
@@ -171,11 +185,10 @@ function DiarizationTab(): React.JSX.Element {
     launch();
   };
 
-  const result = selectedItemDiarization?.result;
   const runningMessageKey = RUNNING_MESSAGE_KEYS[msgIndex % RUNNING_MESSAGE_KEYS.length] ?? null;
 
   // Unavailable states
-  if (!audioId && !result) {
+  if (!audioId && !activeVersion) {
     return (
       <div className="diarization-tab unavailable">
         <Info size={28} aria-hidden="true" className="diarization-tab-unavailable-icon" />
@@ -184,7 +197,7 @@ function DiarizationTab(): React.JSX.Element {
       </div>
     );
   }
-  if (!audioId && result) {
+  if (!audioId && activeVersion) {
     // History case: transcript is here, but audio was wiped between
     // sessions. Show the result we have and an explicit note.
     return (
@@ -285,7 +298,7 @@ function DiarizationTab(): React.JSX.Element {
               onClick={handleStart}
               disabled={!audioId}
             >
-              {result ? t('diarization.tab.restart') : t('diarization.tab.start')}
+              {activeVersion ? t('diarization.tab.restart') : t('diarization.tab.start')}
             </Button>
           )}
           {isBusy && (
@@ -321,14 +334,23 @@ function DiarizationTab(): React.JSX.Element {
           <span>{selectedItemDiarization.error}</span>
         </div>
       )}
-      {status === 'completed' && result && (
+      {status === 'completed' && activeVersion && (
         <div className="diarization-tab-completed-meta">
           {t('diarization.tab.completed.meta', {
-            speakers: result.speakerCount,
-            strategy: result.strategy ?? 'sherpa',
-            cached: result.cached ? t('diarization.tab.completed.cached') : '',
+            speakers: activeVersion.speakerCount,
+            strategy: activeVersion.strategy ?? 'sherpa',
+            cached: activeVersion.cached ? t('diarization.tab.completed.cached') : '',
           })}
         </div>
+      )}
+
+      {versions.length > 0 && (
+        <VersionsStrip
+          versions={versions}
+          activeId={activeVersion?.id}
+          onSelect={setSelectedItemActiveDiarizationVersion}
+          onDelete={deleteSelectedItemDiarizationVersion}
+        />
       )}
 
       {diarization && (
@@ -353,6 +375,92 @@ function DiarizationTab(): React.JSX.Element {
           onCancel={() => setShowConfirm(false)}
         />
       )}
+      {showCapModal && <CapModal onClose={() => setShowCapModal(false)} />}
+    </div>
+  );
+}
+
+interface VersionsStripProps {
+  versions: ReadonlyArray<{
+    id: string;
+    createdAt: string;
+    params: { numClusters?: number; threshold?: number };
+    speakerCount: number;
+  }>;
+  activeId?: string;
+  onSelect: (versionId: string) => void;
+  onDelete: (versionId: string) => void;
+}
+
+function VersionsStrip({
+  versions,
+  activeId,
+  onSelect,
+  onDelete,
+}: VersionsStripProps): React.JSX.Element {
+  const { t } = useTranslation();
+  const formatVersion = (v: VersionsStripProps['versions'][number]): string => {
+    const date = new Date(v.createdAt);
+    const hh = date.getHours().toString().padStart(2, '0');
+    const mm = date.getMinutes().toString().padStart(2, '0');
+    const speakerLabel =
+      typeof v.params.numClusters === 'number' && v.params.numClusters > 0
+        ? `${v.params.numClusters}sp`
+        : 'auto';
+    return `${hh}:${mm} · ${speakerLabel} · ${v.speakerCount}sp`;
+  };
+  return (
+    <div
+      className="diarization-tab-versions"
+      role="group"
+      aria-label={t('diarization.tab.versions.label')}
+    >
+      <span className="diarization-tab-versions-label">{t('diarization.tab.versions.label')}</span>
+      <div className="diarization-tab-versions-chips">
+        {versions.map((v) => {
+          const isActive = v.id === activeId;
+          return (
+            <span
+              key={v.id}
+              className={`diarization-tab-versions-chip${isActive ? ' active' : ''}`}
+            >
+              <button
+                type="button"
+                onClick={() => onSelect(v.id)}
+                title={new Date(v.createdAt).toLocaleString()}
+                className="diarization-tab-versions-chip-label"
+              >
+                {formatVersion(v)}
+              </button>
+              <button
+                type="button"
+                className="diarization-tab-versions-chip-delete"
+                onClick={() => onDelete(v.id)}
+                aria-label={t('diarization.tab.versions.deleteAria')}
+              >
+                <Trash2 size={12} aria-hidden="true" />
+              </button>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CapModal({ onClose }: { onClose: () => void }): React.JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <div className="diarization-tab-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="diarization-tab-modal">
+        <h3>{t('diarization.tab.cap.title')}</h3>
+        <p>{t('diarization.tab.cap.body', { max: MAX_DIARIZATION_VERSIONS })}</p>
+        <div className="diarization-tab-modal-actions">
+          <Button variant="primary" size="sm" onClick={onClose}>
+            {t('diarization.tab.cap.ok')}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

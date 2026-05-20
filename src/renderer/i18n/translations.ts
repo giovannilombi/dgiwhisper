@@ -30,9 +30,9 @@ export const en: Dict = {
     'Files queue up and are processed one after the other; you can keep adding while a batch is running.',
   'help.usage.step1.b3': 'Duplicates (same path or audio fingerprint) are skipped automatically.',
   'help.usage.step2.title': '2. Configure the transcription',
-  'help.usage.step2.diarization.title': 'Speaker diarization',
+  'help.usage.step2.diarization.title': 'Where did the diarization toggle go?',
   'help.usage.step2.diarization.body':
-    'Toggle the red/green switch at the top of the Settings panel to identify "who spoke when". The ⓘ icon next to it explains the limits of the algorithm (it guesses the number of speakers, struggles with overlapping speech, etc.).',
+    'Speaker identification is now a separate step that runs AFTER transcription — see step 5 below. The old toggle in this panel has been removed: transcripts come out clean, then you can decide whether to identify speakers, with which parameters, and re-run as many times as you want without re-transcribing.',
   'help.usage.step2.model.title': 'Whisper model',
   'help.usage.step2.model.body':
     'Pick the model that matches the trade-off you want between speed and quality (see the table at the bottom of this help). The selected model is downloaded automatically on first use.',
@@ -44,34 +44,45 @@ export const en: Dict = {
     'Switch the interface between Italian and English with the flag in the header. The UI language is independent from the transcription language.',
   'help.usage.step3.title': '3. Start the transcription',
   'help.usage.step3.body':
-    'Click Transcribe (or press ⌘ Return) to process the queue. Cancel (or Esc) interrupts the current item — if diarization is in progress, the running worker is stopped too.',
+    'Click Transcribe (or press ⌘ Return) to process the queue. Cancel (or Esc) interrupts the current item. Transcriptions run one at a time globally, but you can keep adding files to the queue while one is running.',
   'help.usage.step4.title': '4. Review the transcript',
   'help.usage.step4.basic':
-    'With diarization OFF the transcript appears as a single block. Click any timestamp to jump to that moment in the inline media player; press ⌘ F to open the inline search bar.',
-  'help.usage.step4.diarized':
-    'With diarization ON the transcript is grouped by speaker block. You can refine the result with three controls on each block:',
-  'help.usage.step4.rename.title': 'Rename a speaker',
-  'help.usage.step4.rename.body':
-    'Click the speaker label (e.g. "Speaker 1") and type the real name (e.g. "Anna"). The new name applies to every block of that speaker across the whole transcript.',
-  'help.usage.step4.merge.title': 'Merge two speakers',
-  'help.usage.step4.merge.body':
-    'When the algorithm split the same person into two clusters, click Merge on a block and pick the target speaker from the dropdown. All blocks of the source speaker collapse into the chosen one.',
-  'help.usage.step4.split.title': 'Split a block',
-  'help.usage.step4.split.body':
-    'When the algorithm grouped two people into the same cluster, click Split on the wrongly attributed block to assign it a fresh new speaker that you can then rename.',
-  'help.usage.step4.persist':
-    'All edits (names, merges, splits) are saved into the transcription history, so re-opening a past transcription brings your refined labels back.',
-  'help.usage.step5.title': '5. Export',
-  'help.usage.step5.intro': 'Save from the toolbar (or press ⌘ S) and pick a format:',
-  'help.usage.step5.txtMd':
-    'TXT and Markdown include the speaker labels when diarization is on (using your renamed labels).',
-  'help.usage.step5.vttSrt':
+    'The transcript lives in the Trascrizione / Transcript tab of the right panel. The file name of what you are looking at always sits in a thin header bar above the tabs, so you can tell which queue item is on screen. Click any timestamp to jump to that moment in the inline media player; press ⌘ F to open the inline search bar.',
+  'help.usage.step5.title': '5. Identify speakers (optional)',
+  'help.usage.step5.intro':
+    'Once a transcript is ready, a second tab — Individuazione speaker / Speaker identification — appears in the right panel. Open it to run speaker diarization on the transcript.',
+  'help.usage.step5.mode.title': 'Pick a mode',
+  'help.usage.step5.mode.body':
+    'Recommended uses sensible defaults (auto-detect speakers, threshold 0.5). Custom exposes the speaker count (auto or fixed 2 to 6) and the clustering threshold slider.',
+  'help.usage.step5.start.title': 'Run it',
+  'help.usage.step5.start.body':
+    'Click Start identification. The progress bar is indeterminate (the engine does not emit percentage), but a rotating status message and the audio-length-÷-3 ETA give you a sense of how long it will take. Skip cancels the run and leaves the transcript untouched.',
+  'help.usage.step5.recluster.title': 'Re-run is sub-second',
+  'help.usage.step5.recluster.body':
+    'After the first run, the embeddings are cached per-transcript. Switching parameters and re-running just re-clusters in JS, no ML needed — typically completes in well under a second.',
+  'help.usage.step5.versions.title': 'Up to 3 saved runs per transcript',
+  'help.usage.step5.versions.body':
+    'Every run is saved as a version chip with timestamp and params. Click a chip to switch the displayed result, click the trash icon to delete one. The fourth run requires deleting an older one first.',
+  'help.usage.step5.queue.title': 'Serial queue + skip',
+  'help.usage.step5.queue.body':
+    'Transcribe and diarize compete for the same CPU, so the app runs one heavy job at a time. Transcribes always take priority. If you try to start a diarization while transcriptions are still in the queue, the app asks whether you want to wait your turn or skip the pending transcribes (you can resume them later via the existing Retry Failed button).',
+  'help.usage.step5.refine.title': 'Refine the labels',
+  'help.usage.step5.refine.body':
+    'Click a speaker name to rename them across the whole transcript. Click Merge on a block to fold one cluster into another (when the model split one person in two). Click Split on a wrongly-attributed block to break it out into its own speaker. All these edits live alongside the saved diarization runs.',
+  'help.usage.step5.local.title': 'Local model, accuracy ceiling',
+  'help.usage.step5.local.body':
+    'The diarization pipeline runs entirely on your Mac, so the audio never leaves the device. The trade-off vs. cloud services is that on noisy audio, similar voices, or strong accents you should expect some mis-attribution. The in-tab info box surfaces the same caveats.',
+  'help.usage.step6.title': '6. Export',
+  'help.usage.step6.intro': 'Save from the toolbar (or press ⌘ S) and pick a format:',
+  'help.usage.step6.txtMd':
+    'TXT and Markdown include the speaker labels when diarization has been run (using your renamed labels).',
+  'help.usage.step6.vttSrt':
     'VTT and SRT are standard subtitle formats with timestamps. Speaker labels are not embedded in subtitles.',
-  'help.usage.step5.docxPdf': 'DOCX and PDF are formatted document exports.',
-  'help.usage.step5.copy': 'Alternatively, copy the plain transcription text with ⌘ C.',
-  'help.usage.step6.title': '6. History',
-  'help.usage.step6.body':
-    'Open the History panel from the header (or ⌘ H). Each entry stores the file name, model, language, duration, full text, and — when diarization was on — the speaker segments and your label / merge / split edits. Click any entry to reload it into the main view exactly as you left it.',
+  'help.usage.step6.docxPdf': 'DOCX and PDF are formatted document exports.',
+  'help.usage.step6.copy': 'Alternatively, copy the plain transcription text with ⌘ C.',
+  'help.usage.step7.title': '7. History',
+  'help.usage.step7.body':
+    'Open the History panel from the header (or ⌘ H). Each entry stores the file name, model, language, duration, full text, and — when diarization has been run — up to 3 saved runs with their parameters and your label edits. Click any entry to reload it. Note: the source audio file is cached only for the current session, so re-running diarization on an old transcript requires loading the audio in the queue again.',
 
   'help.models.heading': 'Whisper Models',
   'help.models.intro':
@@ -168,6 +179,12 @@ export const en: Dict = {
   'diarization.tab.confirm.wait': 'Wait my turn',
   'diarization.tab.confirm.skip': 'Skip transcriptions and start now',
   'diarization.tab.confirm.cancel': 'Cancel',
+  'diarization.tab.versions.label': 'Saved runs',
+  'diarization.tab.versions.deleteAria': 'Delete this saved run',
+  'diarization.tab.cap.title': 'Maximum saved runs reached',
+  'diarization.tab.cap.body':
+    'Each transcript keeps up to {max} diarization runs. Delete one of the existing runs above to make room for a new one.',
+  'diarization.tab.cap.ok': 'Got it',
 
   // Right panel tabs (Phase 2)
   'rightPanel.tabsAriaLabel': 'Workspace panel',
@@ -474,9 +491,9 @@ export const it: Dict = {
   'help.usage.step1.b3':
     'I duplicati (stesso path o stessa impronta audio) vengono saltati automaticamente.',
   'help.usage.step2.title': '2. Configura la trascrizione',
-  'help.usage.step2.diarization.title': 'Identifica chi parla (diarization)',
+  'help.usage.step2.diarization.title': 'Dove è finito il toggle diarizzazione?',
   'help.usage.step2.diarization.body':
-    "Attiva l'interruttore rosso/verde in cima al pannello Impostazioni per identificare \"chi ha parlato e quando\". L'icona ⓘ a fianco spiega i limiti dell'algoritmo (stima il numero di speaker, può sbagliare con sovrapposizioni, ecc.).",
+    "L'identificazione degli speaker è ora un passo separato che gira DOPO la trascrizione — vedi il punto 5 qui sotto. Il vecchio toggle in questo pannello è stato rimosso: le trascrizioni escono pulite, poi decidi tu se identificare gli speaker, con quali parametri, e rilanciare tutte le volte che vuoi senza ri-trascrivere.",
   'help.usage.step2.model.title': 'Modello Whisper',
   'help.usage.step2.model.body':
     'Scegli il modello in base al compromesso che vuoi tra velocità e qualità (vedi la tabella in fondo a questa guida). Il modello selezionato viene scaricato automaticamente al primo uso.',
@@ -488,34 +505,45 @@ export const it: Dict = {
     "Cambia la lingua dell'interfaccia tra italiano e inglese con la bandierina nell'header. La lingua dell'UI è indipendente dalla lingua audio della trascrizione.",
   'help.usage.step3.title': '3. Avvia la trascrizione',
   'help.usage.step3.body':
-    'Clicca Trascrivi (o premi ⌘ Invio) per processare la coda. Annulla (o Esc) interrompe il file corrente — se la diarizzazione è in corso viene terminata anche quella.',
+    'Clicca Trascrivi (o premi ⌘ Invio) per processare la coda. Annulla (o Esc) interrompe il file corrente. Le trascrizioni girano una alla volta a livello globale, ma puoi continuare ad aggiungere file alla coda mentre una è in corso.',
   'help.usage.step4.title': '4. Rivedi la trascrizione',
   'help.usage.step4.basic':
-    'Con la diarizzazione OFF la trascrizione appare come un unico blocco. Clicca un timestamp per saltare a quel momento nel player inline; premi ⌘ F per aprire la barra di ricerca.',
-  'help.usage.step4.diarized':
-    'Con la diarizzazione ON la trascrizione è raggruppata in blocchi per speaker. Puoi raffinare il risultato con tre controlli su ogni blocco:',
-  'help.usage.step4.rename.title': 'Rinomina uno speaker',
-  'help.usage.step4.rename.body':
-    'Clicca l\'etichetta dello speaker (es. "Speaker 1") e scrivi il nome reale (es. "Anna"). Il nuovo nome viene applicato a tutti i blocchi di quello speaker in tutta la trascrizione.',
-  'help.usage.step4.merge.title': 'Unisci due speaker',
-  'help.usage.step4.merge.body':
-    "Se l'algoritmo ha diviso la stessa persona in due cluster, clicca Unisci su un blocco e scegli lo speaker target dal menu. Tutti i blocchi dello speaker di origine confluiscono in quello scelto.",
-  'help.usage.step4.split.title': 'Separa un blocco',
-  'help.usage.step4.split.body':
-    "Se l'algoritmo ha unito due persone nello stesso cluster, clicca Separa sul blocco mal attribuito per assegnargli uno speaker nuovo che puoi poi rinominare.",
-  'help.usage.step4.persist':
-    'Tutte le modifiche (nomi, unioni, separazioni) vengono salvate nella cronologia delle trascrizioni, quindi riaprendo una trascrizione passata ritrovi le tue etichette raffinate.',
-  'help.usage.step5.title': '5. Esporta',
-  'help.usage.step5.intro': 'Salva dalla toolbar (o premi ⌘ S) e scegli il formato:',
-  'help.usage.step5.txtMd':
-    'TXT e Markdown includono le etichette degli speaker quando la diarizzazione è attiva (usando i nomi che hai rinominato).',
-  'help.usage.step5.vttSrt':
+    'La trascrizione vive nella tab Trascrizione del pannello di destra. Il nome del file che stai guardando è sempre mostrato in una barra sottile sopra le tab, così sai sempre a quale item della coda corrisponde. Clicca un timestamp per saltare a quel momento nel player inline; premi ⌘ F per aprire la barra di ricerca.',
+  'help.usage.step5.title': '5. Individuazione speaker (opzionale)',
+  'help.usage.step5.intro':
+    'Una volta pronta la trascrizione, nel pannello di destra appare una seconda tab — Individuazione speaker. Aprila per lanciare la diarizzazione sulla trascrizione.',
+  'help.usage.step5.mode.title': 'Scegli la modalità',
+  'help.usage.step5.mode.body':
+    'Predefinita usa i parametri consigliati (auto-rileva speaker, threshold 0.5). Personalizzata espone il numero di speaker (auto o fisso da 2 a 6) e lo slider del threshold di clustering.',
+  'help.usage.step5.start.title': 'Avvia',
+  'help.usage.step5.start.body':
+    "Clicca Avvia individuazione. La barra di avanzamento è indeterminata (il motore non emette percentuale), ma un messaggio di stato a rotazione e l'ETA pari a durata audio ÷ 3 ti danno un'idea dei tempi. Skip annulla l'esecuzione e lascia il transcript intatto.",
+  'help.usage.step5.recluster.title': 'Rilancio sotto al secondo',
+  'help.usage.step5.recluster.body':
+    'Dopo il primo run gli embedding restano in cache per quella trascrizione. Cambiare parametri e rilanciare ri-fa solo il clustering in JS, senza ML — tipicamente meno di un secondo.',
+  'help.usage.step5.versions.title': 'Massimo 3 run salvati per trascrizione',
+  'help.usage.step5.versions.body':
+    'Ogni run viene salvato come chip con timestamp e parametri. Clicca un chip per cambiare il risultato mostrato, clicca il cestino per eliminarlo. Il quarto run richiede di eliminarne prima uno.',
+  'help.usage.step5.queue.title': 'Coda seriale + skip',
+  'help.usage.step5.queue.body':
+    "Trascrizione e diarizzazione si contendono la stessa CPU, quindi l'app esegue un solo job pesante alla volta. Le trascrizioni hanno sempre la priorità. Se tenti di avviare una diarizzazione mentre ci sono trascrizioni ancora in coda, l'app ti chiede se vuoi aspettare il turno o skippare le trascrizioni in corso (potrai riprenderle dopo con Riprova falliti).",
+  'help.usage.step5.refine.title': 'Raffina le etichette',
+  'help.usage.step5.refine.body':
+    'Clicca il nome di uno speaker per rinominarlo in tutta la trascrizione. Clicca Unisci su un blocco per fonderlo in un altro cluster (quando il modello ha diviso una persona in due). Clicca Separa su un blocco mal attribuito per estrarlo come nuovo speaker. Tutte queste modifiche vivono insieme ai run di diarizzazione salvati.',
+  'help.usage.step5.local.title': 'Modello locale, accuratezza non massima',
+  'help.usage.step5.local.body':
+    "Il modello di diarizzazione gira interamente sul tuo Mac, quindi l'audio non lascia mai il dispositivo. Il compromesso rispetto ai servizi cloud è che su audio rumoroso, voci simili o accenti marcati ti devi aspettare qualche errore di assegnazione. Il box info dentro la tab ripete gli stessi caveat.",
+  'help.usage.step6.title': '6. Esporta',
+  'help.usage.step6.intro': 'Salva dalla toolbar (o premi ⌘ S) e scegli il formato:',
+  'help.usage.step6.txtMd':
+    'TXT e Markdown includono le etichette degli speaker quando hai lanciato la diarizzazione (usando i nomi che hai rinominato).',
+  'help.usage.step6.vttSrt':
     'VTT e SRT sono formati sottotitoli standard con timestamp. Le etichette degli speaker non sono incluse nei sottotitoli.',
-  'help.usage.step5.docxPdf': 'DOCX e PDF sono export di documenti formattati.',
-  'help.usage.step5.copy': 'In alternativa, copia il testo semplice della trascrizione con ⌘ C.',
-  'help.usage.step6.title': '6. Cronologia',
-  'help.usage.step6.body':
-    "Apri il pannello Cronologia dall'header (o ⌘ H). Ogni voce salva nome file, modello, lingua, durata, testo completo e — se la diarizzazione era attiva — i segmenti per speaker e le tue modifiche di nome / unione / separazione. Clicca una voce per ricaricarla nella vista principale esattamente come l'avevi lasciata.",
+  'help.usage.step6.docxPdf': 'DOCX e PDF sono export di documenti formattati.',
+  'help.usage.step6.copy': 'In alternativa, copia il testo semplice della trascrizione con ⌘ C.',
+  'help.usage.step7.title': '7. Cronologia',
+  'help.usage.step7.body':
+    "Apri il pannello Cronologia dall'header (o ⌘ H). Ogni voce salva nome file, modello, lingua, durata, testo completo e — quando è stata lanciata la diarizzazione — fino a 3 run salvati con i loro parametri e le tue modifiche di etichetta. Clicca una voce per ricaricarla. Nota: il file audio originale resta in cache solo per la sessione corrente, quindi rilanciare la diarizzazione su una vecchia trascrizione richiede di ricaricare l'audio nella coda.",
 
   'help.models.heading': 'Modelli Whisper',
   'help.models.intro':
@@ -612,6 +640,12 @@ export const it: Dict = {
   'diarization.tab.confirm.wait': 'Aspetto il mio turno',
   'diarization.tab.confirm.skip': 'Skippa trascrizioni e parti ora',
   'diarization.tab.confirm.cancel': 'Annulla',
+  'diarization.tab.versions.label': 'Run salvati',
+  'diarization.tab.versions.deleteAria': 'Elimina questo run salvato',
+  'diarization.tab.cap.title': 'Numero massimo di run raggiunto',
+  'diarization.tab.cap.body':
+    'Ogni trascrizione conserva fino a {max} run di diarizzazione. Elimina uno dei run esistenti qui sopra per fare spazio a uno nuovo.',
+  'diarization.tab.cap.ok': 'Ho capito',
 
   // Right panel tabs (Fase 2)
   'rightPanel.tabsAriaLabel': 'Pannello workspace',

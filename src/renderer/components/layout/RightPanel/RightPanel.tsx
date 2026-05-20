@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Users } from 'lucide-react';
+import { FileText, Users, File as FileIcon } from 'lucide-react';
 import { OutputDisplay } from '../../../features/transcription';
 import { DiarizationTab } from '../../../features/transcription/components/DiarizationTab';
 import { TranscriptionHistory } from '../../../features/history';
 import { Tabs } from '../../ui';
 import { useAppHistory, useAppTranscription } from '../../../contexts';
 import { useTranslation } from '../../../i18n';
+import { formatFileSize } from '../../../utils';
 import './RightPanel.css';
 
 type RightPanelTabId = 'transcript' | 'diarization';
@@ -69,9 +70,26 @@ function RightPanel(): React.JSX.Element {
   const diarizeTabBusy =
     selectedItemDiarization?.status === 'running' || selectedItemDiarization?.status === 'queued';
   const showTabs = Boolean(transcription) && diarizeTabEnabled;
+  // The header bar shows the source file of whatever is on the right
+  // side — it's the only durable cue connecting the queue card on the
+  // left to the transcript / diarization view on the right. We render
+  // it whenever there's any transcript content to show.
+  const showFileHeader = Boolean(transcription) && Boolean(selectedFile);
 
   return (
     <div className="right-panel">
+      {showFileHeader && selectedFile && (
+        <div className="right-panel-file-header" title={selectedFile.path}>
+          <FileIcon size={14} aria-hidden="true" className="right-panel-file-header-icon" />
+          <span className="right-panel-file-header-name">{selectedFile.name}</span>
+          {typeof selectedFile.size === 'number' && selectedFile.size > 0 && (
+            <span className="right-panel-file-header-size">
+              {formatFileSize(selectedFile.size)}
+            </span>
+          )}
+        </div>
+      )}
+
       {showTabs && (
         <Tabs<RightPanelTabId>
           ariaLabel={t('rightPanel.tabsAriaLabel')}

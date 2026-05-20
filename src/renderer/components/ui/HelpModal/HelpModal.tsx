@@ -148,32 +148,45 @@ function HelpModal({ isOpen, onClose }: HelpModalProps): React.JSX.Element | nul
             <div className="help-step">
               <h4>{t('help.usage.step4.title')}</h4>
               <p>{t('help.usage.step4.basic')}</p>
-              <p>{t('help.usage.step4.diarized')}</p>
-              <dl>
-                <dt>{t('help.usage.step4.rename.title')}</dt>
-                <dd>{t('help.usage.step4.rename.body')}</dd>
-                <dt>{t('help.usage.step4.merge.title')}</dt>
-                <dd>{t('help.usage.step4.merge.body')}</dd>
-                <dt>{t('help.usage.step4.split.title')}</dt>
-                <dd>{t('help.usage.step4.split.body')}</dd>
-              </dl>
-              <p className="help-callout">{t('help.usage.step4.persist')}</p>
             </div>
 
             <div className="help-step">
               <h4>{t('help.usage.step5.title')}</h4>
               <p>{t('help.usage.step5.intro')}</p>
-              <ul>
-                <li>{t('help.usage.step5.txtMd')}</li>
-                <li>{t('help.usage.step5.vttSrt')}</li>
-                <li>{t('help.usage.step5.docxPdf')}</li>
-              </ul>
-              <p>{t('help.usage.step5.copy')}</p>
+              <dl>
+                <dt>{t('help.usage.step5.mode.title')}</dt>
+                <dd>{t('help.usage.step5.mode.body')}</dd>
+                <dt>{t('help.usage.step5.start.title')}</dt>
+                <dd>{t('help.usage.step5.start.body')}</dd>
+                <dt>{t('help.usage.step5.recluster.title')}</dt>
+                <dd>{t('help.usage.step5.recluster.body')}</dd>
+                <dt>{t('help.usage.step5.versions.title')}</dt>
+                <dd>{t('help.usage.step5.versions.body')}</dd>
+                <dt>{t('help.usage.step5.queue.title')}</dt>
+                <dd>{t('help.usage.step5.queue.body')}</dd>
+                <dt>{t('help.usage.step5.refine.title')}</dt>
+                <dd>{t('help.usage.step5.refine.body')}</dd>
+              </dl>
+              <p className="help-callout">
+                <strong>{t('help.usage.step5.local.title')}</strong>{' '}
+                {t('help.usage.step5.local.body')}
+              </p>
             </div>
 
             <div className="help-step">
               <h4>{t('help.usage.step6.title')}</h4>
-              <p>{t('help.usage.step6.body')}</p>
+              <p>{t('help.usage.step6.intro')}</p>
+              <ul>
+                <li>{t('help.usage.step6.txtMd')}</li>
+                <li>{t('help.usage.step6.vttSrt')}</li>
+                <li>{t('help.usage.step6.docxPdf')}</li>
+              </ul>
+              <p>{t('help.usage.step6.copy')}</p>
+            </div>
+
+            <div className="help-step">
+              <h4>{t('help.usage.step7.title')}</h4>
+              <p>{t('help.usage.step7.body')}</p>
             </div>
           </section>
 

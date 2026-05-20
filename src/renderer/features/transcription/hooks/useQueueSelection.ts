@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { QueueItem, SelectedFile } from '../../../types';
+import { getActiveDiarizationVersion } from '../../../../shared/types';
 import type { DiarizationState } from './useTranscription';
 
 export const useQueueSelection = (
@@ -31,14 +32,14 @@ export const useQueueSelection = (
         if (setDiarization) {
           // Prefer the per-item diarization state stored on the queue
           // item itself (Phase 2: each item carries its own diarization
-          // result). Fall back to the legacy getCompletedDiarization
+          // versions[]). Fall back to the legacy getCompletedDiarization
           // helper so older queue items still display.
-          const diarResult = item?.diarization?.result;
-          if (diarResult) {
+          const activeVersion = getActiveDiarizationVersion(item?.diarization);
+          if (activeVersion) {
             setDiarization({
-              segments: diarResult.segments,
-              speakerCount: diarResult.speakerCount,
-              labels: diarResult.labels,
+              segments: activeVersion.segments,
+              speakerCount: activeVersion.speakerCount,
+              labels: activeVersion.labels,
             });
           } else {
             setDiarization(getCompletedDiarization?.(id) ?? null);

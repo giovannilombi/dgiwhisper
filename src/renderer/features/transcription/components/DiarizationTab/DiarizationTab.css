@@ -281,3 +281,68 @@
   flex-wrap: wrap;
   margin-top: 14px;
 }
+
+.diarization-tab-versions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diarization-tab-versions-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.diarization-tab-versions-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.diarization-tab-versions-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 6px 2px 10px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.diarization-tab-versions-chip.active {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.diarization-tab-versions-chip-label {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.diarization-tab-versions-chip-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.diarization-tab-versions-chip-delete:hover {
+  color: var(--danger);
+  background: var(--danger-light);
+}

@@ -266,6 +266,17 @@ function FileQueue({
             </div>
             <div className="file-queue-item-content">
               <span className="file-queue-item-name">{item.file.name}</span>
+              {/* Diarization runs after transcription on a completed item,
+                  in a separate queue. Surface its status in plain text so
+                  the spinner isn't the only cue — the user explicitly
+                  asked to see "Individuazione speaker in corso" / its
+                  English equivalent right on the card. */}
+              {item.status === 'completed' && item.diarization?.status === 'running' && (
+                <span className="file-queue-item-phase diarizing">{t('queue.item.diarizing')}</span>
+              )}
+              {item.status === 'completed' && item.diarization?.status === 'queued' && (
+                <span className="file-queue-item-phase">{t('queue.item.diarizeQueued')}</span>
+              )}
               {item.status === 'processing' && (
                 <>
                   <span

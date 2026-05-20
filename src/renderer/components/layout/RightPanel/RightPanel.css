@@ -5,3 +5,43 @@
   min-height: 0;
   min-width: 0;
 }
+
+/* Header that names the file the right panel is currently showing.
+   Sits above the tabs (when present) and above the OutputDisplay so
+   the user can always tell at a glance which transcript they're
+   looking at — independent of what's selected/running in the queue. */
+.right-panel-file-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border-bottom: none;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.right-panel-file-header-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.right-panel-file-header-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.right-panel-file-header-size {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
