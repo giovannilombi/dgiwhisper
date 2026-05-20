@@ -25,7 +25,8 @@ interface UseBatchQueueOptions {
     id: string,
     text: string,
     file: SelectedFile,
-    diarization?: DiarizationState | null
+    diarization?: DiarizationState | null,
+    audioId?: string
   ) => void;
 }
 
@@ -613,8 +614,6 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
           model: settings.model,
           language: settings.language,
           outputFormat: 'vtt',
-          diarize: settings.diarize === true,
-          diarizeSpeakers: settings.diarizeSpeakers,
         });
 
         const endTime = Date.now();
@@ -677,6 +676,7 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
             duration: Math.round((endTime - startTime) / 1000),
             preview: result.text.substring(0, 100) + (result.text.length > 100 ? '...' : ''),
             fullText: result.text,
+            ...(result.audioId ? { audioId: result.audioId } : {}),
             ...(result.segments ? { segments: result.segments } : {}),
             ...(result.speakers !== undefined ? { speakerCount: result.speakers } : {}),
           };
@@ -689,7 +689,7 @@ export function useBatchQueue(options: UseBatchQueueOptions): UseBatchQueueRetur
             result.segments && result.speakers !== undefined
               ? { segments: result.segments, speakerCount: result.speakers }
               : null;
-          onFirstComplete(item.id, result.text, item.file, diarizationState);
+          onFirstComplete(item.id, result.text, item.file, diarizationState, result.audioId);
         }
 
         return {

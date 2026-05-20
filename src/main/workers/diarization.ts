@@ -12,7 +12,7 @@
 
 import fs from 'fs';
 import os from 'os';
-import { OfflineSpeakerDiarization } from 'sherpa-onnx-node';
+import { OfflineSpeakerDiarization, SpeakerEmbeddingExtractor } from 'sherpa-onnx-node';
 
 interface RunnerInput {
   wavPath: string;
@@ -20,11 +20,20 @@ interface RunnerInput {
   clustering: { numClusters: number; threshold: number };
   minDurationOn?: number;
   minDurationOff?: number;
+  /**
+   * When true, the runner additionally extracts a per-segment speaker
+   * embedding via SpeakerEmbeddingExtractor and ships it back to the
+   * main process so it can be cached. The downstream diarize-service
+   * uses the cache to re-cluster instantly when the user tweaks
+   * parameters, without re-running the heavy ML pipeline.
+   */
+  withEmbeddings?: boolean;
 }
 
 interface RunnerOutput {
   success: boolean;
   segments?: { start: number; end: number; speaker: number }[];
+  embeddings?: { dim: number; count: number; b64: string };
   error?: string;
 }
 
@@ -187,16 +196,14 @@ async function main(): Promise<void> {
       embedding: { model: input.modelPaths.embedding, numThreads },
       clustering: input.clustering,
       // minDurationOn = shortest speech run pyannote will emit. The
-      // upstream default of 0.2s gives many sub-500ms segments which
-      // are too short to extract a reliable TitaNet embedding — those
-      // embeddings then drift, polluting the clustering with spurious
-      // speakers (or, more subtly, mis-assigning a segment to the
-      // wrong cluster centroid). 1.2s pushes the windows long enough
-      // that the embedding model sees a meaningful prosodic chunk of
-      // each speaker. Genuine short interjections under 1s do get
-      // absorbed into the surrounding silence, which is acceptable
-      // for the majority of meeting/interview recordings.
-      minDurationOn: input.minDurationOn ?? 1.2,
+      // upstream default of 0.2s gives sub-500ms segments that are too
+      // short to extract a reliable embedding. 0.6s is the sweet spot
+      // with WeSpeaker ResNet293: long enough to give the embedding
+      // model a meaningful window, short enough to keep genuine short
+      // interjections (1–2 words). With weaker embeddings (e.g. TitaNet)
+      // we had to push this to 1.2s to compensate for noisier vectors —
+      // ResNet293 doesn't need that crutch.
+      minDurationOn: input.minDurationOn ?? 0.6,
       // minDurationOff = shortest silence pyannote will treat as a
       // boundary between two speaker turns. 0.7s prevents a single
       // breath pause from splitting one speaker's run into two
@@ -225,7 +232,51 @@ async function main(): Promise<void> {
       speaker: Number(s.speaker),
     }));
     log('process complete', { segmentCount: segments.length });
-    emit({ success: true, segments });
+
+    let embeddingsPayload: RunnerOutput['embeddings'] | undefined;
+    if (input.withEmbeddings && segments.length > 0) {
+      log('extracting per-segment embeddings');
+      const extractor = new SpeakerEmbeddingExtractor({
+        model: input.modelPaths.embedding,
+        numThreads,
+      });
+      const dim = extractor.dim;
+      log('embedding extractor ready', { dim });
+
+      const flat = new Float32Array(segments.length * dim);
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i]!;
+        const startSample = Math.max(0, Math.floor(seg.start * wave.sampleRate));
+        const endSample = Math.min(wave.samples.length, Math.floor(seg.end * wave.sampleRate));
+        if (endSample <= startSample) {
+          // Empty/invalid segment — emit a zero embedding so indices stay aligned.
+          continue;
+        }
+        const clip = wave.samples.subarray(startSample, endSample);
+        const stream = extractor.createStream();
+        stream.acceptWaveform({ sampleRate: wave.sampleRate, samples: clip });
+        stream.inputFinished();
+        if (!extractor.isReady(stream)) {
+          log('extractor not ready for segment, skipping', { segmentIndex: i });
+          continue;
+        }
+        // `enableExternalBuffer=false` gives us a JS-heap-backed Float32Array,
+        // not an N-API external buffer — necessary because we then copy it
+        // into the `flat` array via Buffer write under V8's strict mode.
+        const emb = extractor.compute(stream, false);
+        flat.set(emb, i * dim);
+      }
+
+      const b64 = Buffer.from(flat.buffer, flat.byteOffset, flat.byteLength).toString('base64');
+      embeddingsPayload = { dim, count: segments.length, b64 };
+      log('embeddings extracted', {
+        count: segments.length,
+        dim,
+        bytesB64: b64.length,
+      });
+    }
+
+    emit({ success: true, segments, embeddings: embeddingsPayload });
     process.exit(0);
   } catch (err) {
     log('error', {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { OutputDisplay } from '../../../features/transcription';
+import { DiarizationPanel } from '../../../features/transcription/components/DiarizationPanel';
 import { TranscriptionHistory } from '../../../features/history';
 import { useAppHistory, useAppTranscription } from '../../../contexts';
 
@@ -49,6 +50,7 @@ function RightPanel(): React.JSX.Element {
         diarizationLabels={diarization?.labels}
         onDiarizationStateChange={updateCurrentDiarization}
       />
+      <DiarizationPanel />
     </div>
   );
 }

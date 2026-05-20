@@ -301,15 +301,13 @@ export function parseWhisperJsonFull(jsonText: string): WhisperToken[] {
  * touching real turn-takes (which are always neighboured by a different
  * speaker on the other side).
  *
- * 8 tokens ≈ 2–3 s of speech depending on rate. Empirically this is the
- * smallest cutoff that still erases the "cluster swap" symptom on noisy
- * sherpa-onnx output (where a single misclassified mid-sentence segment
- * inserts ~5 misattributed tokens). A real interjection ("yes please")
- * is usually fewer than 5 tokens, but it's also almost always followed
- * by a third speaker's reaction, not a return to the original — so the
- * "flanked by SAME speaker on both sides" guard keeps it alive.
+ * 6 tokens ≈ 1.5–2 s of speech. Calibrated for WeSpeaker ResNet293's
+ * cleaner cluster assignments — we don't need to compensate for as many
+ * sherpa misclassifications as we did with TitaNet (which required 8).
+ * The "flanked by SAME speaker on both sides" guard still protects
+ * legitimate short interjections.
  */
-const DEFAULT_MIN_RUN_TOKENS = 8;
+const DEFAULT_MIN_RUN_TOKENS = 6;
 
 interface SpeakerRun {
   speaker: number;

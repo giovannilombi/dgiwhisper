@@ -37,11 +37,29 @@ export interface DiarizationState {
   labels?: Record<number, string>;
 }
 
+export interface DiarizationRunStatus {
+  running: boolean;
+  /** Last error, cleared when a fresh run starts. */
+  error: string | null;
+  /** Which path served the last run (channel fast-path, sherpa, cached recluster). */
+  strategy?: 'channel' | 'sherpa-fresh' | 'sherpa-recluster';
+  /** True if the most recent run hit the embedding cache (instantaneous). */
+  cached?: boolean;
+}
+
+export interface DiarizationRunParams {
+  numClusters?: number;
+  threshold?: number;
+}
+
 export interface UseTranscriptionReturn {
   selectedFile: SelectedFile | null;
   settings: TranscriptionSettings;
   transcription: string;
   diarization: DiarizationState | null;
+  /** Session-scoped audio id of the most recent transcript; allows diarization. */
+  audioId: string | null;
+  diarizeStatus: DiarizationRunStatus;
   error: string | null;
   modelDownloaded: boolean;
 
@@ -50,7 +68,11 @@ export interface UseTranscriptionReturn {
   setModelDownloaded: (downloaded: boolean) => void;
   setTranscription: (text: string) => void;
   setDiarization: (state: DiarizationState | null) => void;
+  setAudioId: (audioId: string | null) => void;
   setError: (error: string | null) => void;
+
+  runDiarization: (params?: DiarizationRunParams) => Promise<void>;
+  cancelDiarization: () => Promise<void>;
 
   handleSave: (format?: OutputFormat, contentOverride?: string) => Promise<void>;
   handleCopy: (copyToClipboard: (text: string) => Promise<boolean>) => Promise<boolean>;
@@ -65,8 +87,66 @@ export function useTranscription(): UseTranscriptionReturn {
   });
   const [transcription, setTranscription] = useState<string>('');
   const [diarization, setDiarization] = useState<DiarizationState | null>(null);
+  const [audioId, setAudioId] = useState<string | null>(null);
+  const [diarizeStatus, setDiarizeStatus] = useState<DiarizationRunStatus>({
+    running: false,
+    error: null,
+  });
   const [error, setError] = useState<string | null>(null);
   const [modelDownloaded, setModelDownloaded] = useState<boolean>(true);
+
+  const runDiarization = useCallback(
+    async (params?: DiarizationRunParams) => {
+      if (!audioId) {
+        setDiarizeStatus({
+          running: false,
+          error: 'Audio non disponibile in cache. Riavvia la trascrizione del file.',
+        });
+        return;
+      }
+      const api = window.electronAPI;
+      if (!api?.diarizeRun) {
+        setDiarizeStatus({ running: false, error: 'Diarization IPC non disponibile.' });
+        return;
+      }
+      setDiarizeStatus({ running: true, error: null });
+      try {
+        const response = await api.diarizeRun(audioId, params);
+        if (!response.success) {
+          setDiarizeStatus({ running: false, error: response.error });
+          return;
+        }
+        if ('cancelled' in response && response.cancelled) {
+          setDiarizeStatus({ running: false, error: null });
+          return;
+        }
+        setDiarization({
+          segments: response.segments,
+          speakerCount: response.speakerCount,
+          labels: {},
+        });
+        setDiarizeStatus({
+          running: false,
+          error: null,
+          strategy: response.strategy,
+          cached: response.cached,
+        });
+      } catch (err) {
+        setDiarizeStatus({
+          running: false,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+    [audioId]
+  );
+
+  const cancelDiarization = useCallback(async () => {
+    const api = window.electronAPI;
+    if (!api?.diarizeCancel) return;
+    await api.diarizeCancel();
+    setDiarizeStatus({ running: false, error: null });
+  }, []);
 
   const handleSave = useCallback(
     async (format: OutputFormat = 'vtt', contentOverride?: string): Promise<void> => {
@@ -157,6 +237,8 @@ export function useTranscription(): UseTranscriptionReturn {
     settings,
     transcription,
     diarization,
+    audioId,
+    diarizeStatus,
     error,
     modelDownloaded,
 
@@ -165,7 +247,10 @@ export function useTranscription(): UseTranscriptionReturn {
     setModelDownloaded,
     setTranscription,
     setDiarization,
+    setAudioId,
     setError,
+    runDiarization,
+    cancelDiarization,
     handleSave,
     handleCopy,
     clearError,

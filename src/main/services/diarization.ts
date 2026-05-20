@@ -36,14 +36,14 @@ function getModelPaths(): ModelPaths {
   const baseDir = getModelsBaseDir();
   return {
     segmentation: path.join(baseDir, 'sherpa-onnx-pyannote-segmentation-3-0', 'model.onnx'),
-    // NVIDIA NeMo TitaNet Large speaker embedding. Trained on VoxCeleb
-    // 1+2 plus other Western-language corpora and known to generalise
-    // well to Italian/English speech. Replaces the previous 3D-Speaker
-    // ERes2Net which was trained on Chinese and required us to push the
-    // clustering threshold to 0.9 to keep two-speaker recordings from
-    // exploding into dozens of clusters. With TitaNet a threshold around
-    // 0.45–0.55 is the upstream-recommended range.
-    embedding: path.join(baseDir, 'nemo_en_titanet_large.onnx'),
+    // WeSpeaker ResNet293 + large-margin fine-tuning. State of the art
+    // for speaker embedding in our ecosystem (~0.45% EER on VoxCeleb-O,
+    // vs ~0.66% for TitaNet Large). VoxCeleb 1+2 contain Italian, French,
+    // Spanish, German speakers among many others, so the model generalises
+    // well to non-English Western speech. The model is ~3-4× slower than
+    // TitaNet but still tractable for offline runs and the diarization
+    // quality improvement is worth the extra latency.
+    embedding: path.join(baseDir, 'wespeaker_en_voxceleb_resnet293_LM.onnx'),
   };
 }
 
@@ -66,7 +66,42 @@ export class DiarizationAbortedError extends Error {
 interface RunnerResponse {
   success: boolean;
   segments?: DiarizationSegment[];
+  embeddings?: { dim: number; count: number; b64: string };
   error?: string;
+}
+
+export interface RunDiarizationResult {
+  segments: DiarizationSegment[];
+  /**
+   * When `withEmbeddings: true` was passed, each segment carries a
+   * corresponding speaker embedding here (same order, same length).
+   * The diarize-service caches these so re-clustering with different
+   * params can run in milliseconds without re-touching the audio.
+   */
+  embeddings?: Float32Array[];
+}
+
+export interface RunDiarizationOptions extends DiarizationOptions {
+  withEmbeddings?: boolean;
+}
+
+function decodeEmbeddings(payload: { dim: number; count: number; b64: string }): Float32Array[] {
+  const raw = Buffer.from(payload.b64, 'base64');
+  const floats = new Float32Array(
+    raw.buffer,
+    raw.byteOffset,
+    raw.byteLength / Float32Array.BYTES_PER_ELEMENT
+  );
+  const out: Float32Array[] = new Array(payload.count);
+  for (let i = 0; i < payload.count; i++) {
+    // Copy each slice into a fresh JS-heap-backed Float32Array so the
+    // underlying Buffer can be GC'd without keeping the whole base64
+    // payload alive.
+    const slice = new Float32Array(payload.dim);
+    slice.set(floats.subarray(i * payload.dim, (i + 1) * payload.dim));
+    out[i] = slice;
+  }
+  return out;
 }
 
 // Run diarization in a separate Electron-in-Node-mode child process.
@@ -76,9 +111,9 @@ interface RunnerResponse {
 // N-API external buffers ("External buffers are not allowed").
 export function runDiarization(
   wavPath: string,
-  options: DiarizationOptions = {},
+  options: RunDiarizationOptions = {},
   signal?: AbortSignal
-): Promise<DiarizationSegment[]> {
+): Promise<RunDiarizationResult> {
   return new Promise((resolve, reject) => {
     log.info('[diarization] runDiarization called', { wavPath });
 
@@ -126,13 +161,13 @@ export function runDiarization(
         // Higher threshold → cut higher → MORE merges → FEWER clusters,
         // lower threshold → cut lower → MORE clusters.
         //
-        // With NeMo TitaNet Large the published sherpa-onnx example uses
-        // 0.5 for general English speech; we keep that as the default
-        // for it/en recordings. The dropTinyDiarizationClusters() pass
-        // downstream still picks up the long tail of <3% micro-clusters
-        // that any embedding model occasionally hallucinates.
+        // With WeSpeaker ResNet293 the published sherpa-onnx example uses
+        // 0.5 for general speech; we keep that as the default for it/en
+        // recordings. The diarize-service downstream may re-cluster with
+        // a different value from the cached embeddings.
         threshold: options.threshold ?? 0.5,
       },
+      withEmbeddings: options.withEmbeddings === true,
     });
 
     log.info('[diarization] spawning runner', { runnerPath, execPath: process.execPath });
@@ -255,7 +290,21 @@ export function runDiarization(
         return;
       }
 
-      finish(() => resolve(parsed.segments ?? []));
+      const result: RunDiarizationResult = {
+        segments: parsed.segments ?? [],
+      };
+      if (parsed.embeddings) {
+        try {
+          result.embeddings = decodeEmbeddings(parsed.embeddings);
+        } catch (err) {
+          log.error('[diarization] failed to decode embeddings', {
+            err: err instanceof Error ? err.message : String(err),
+          });
+          // Don't fail the whole call — the segments are still usable
+          // without the cache, just without re-iteration speedup.
+        }
+      }
+      finish(() => resolve(result));
     });
 
     // Hand the JSON config to the runner and close stdin

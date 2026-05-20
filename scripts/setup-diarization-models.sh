@@ -12,11 +12,12 @@ SEGMENTATION_ARCHIVE_URL="https://github.com/k2-fsa/sherpa-onnx/releases/downloa
 SEGMENTATION_DIR_NAME="sherpa-onnx-pyannote-segmentation-3-0"
 SEGMENTATION_MODEL_FILE="model.onnx"
 
-# NVIDIA NeMo TitaNet Large — multilingual speaker-verification embedding
-# distributed via sherpa-onnx. Trained on VoxCeleb 1+2 (English + many other
-# Western languages) and generalises well to Italian. ~92 MB.
-EMBEDDING_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/nemo_en_titanet_large.onnx"
-EMBEDDING_MODEL_FILE="nemo_en_titanet_large.onnx"
+# WeSpeaker ResNet293 with large-margin fine-tuning, trained on VoxCeleb 1+2.
+# State of the art in our ecosystem for speaker embedding (~0.45% EER on
+# VoxCeleb-O, vs ~0.66% for TitaNet Large). Multilingual coverage is good
+# enough for Italian + English. ~256 MB on disk.
+EMBEDDING_URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/wespeaker_en_voxceleb_resnet293_LM.onnx"
+EMBEDDING_MODEL_FILE="wespeaker_en_voxceleb_resnet293_LM.onnx"
 
 mkdir -p "$MODELS_DIR"
 cd "$MODELS_DIR"

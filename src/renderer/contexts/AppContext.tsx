@@ -54,11 +54,16 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     diarization,
     error,
     modelDownloaded,
+    audioId,
+    diarizeStatus,
     setSelectedFile,
     setSettings,
     setModelDownloaded,
     setTranscription,
     setDiarization,
+    setAudioId,
+    runDiarization,
+    cancelDiarization,
     handleSave,
     handleCopy,
   } = useTranscription();
@@ -85,11 +90,12 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
   } = useBatchQueue({
     settings,
     onHistoryAdd: addHistoryItem,
-    onFirstComplete: (id, text, file, diarizationState) => {
+    onFirstComplete: (id, text, file, diarizationState, transcriptAudioId) => {
       setSelectedQueueItemId(id);
       setTranscription(text);
       setSelectedFile(file);
       setDiarization(diarizationState ?? null);
+      setAudioId(transcriptAudioId ?? null);
     },
   });
 
@@ -106,10 +112,15 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
             }
           : null
       );
+      // History items hydrated from a previous session no longer have a
+      // live audioId — the audio cache is session-scoped. The renderer
+      // will treat this as "rerun diarization is unavailable until you
+      // reload the audio".
+      setAudioId(item.audioId ?? null);
       setSelectedQueueItemId(item.id);
       setShowHistory(false);
     },
-    [setTranscription, setSelectedFile, setShowHistory, setDiarization]
+    [setTranscription, setSelectedFile, setShowHistory, setDiarization, setAudioId]
   );
 
   const updateCurrentDiarization = useCallback(
@@ -165,13 +176,30 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
     (id: string): void => {
       removeFile(id);
       if (selectedQueueItemId === id) {
+        // Tell the main process it can free the cached wav and embeddings
+        // associated with this transcript. We don't await — it's
+        // best-effort cleanup and shouldn't block the UI.
+        if (audioId) {
+          window.electronAPI?.diarizeReleaseAudio?.(audioId).catch(() => {
+            /* ignore — cleanup is best-effort */
+          });
+        }
         setSelectedQueueItemId(null);
         setTranscription('');
         setSelectedFile(null);
         setDiarization(null);
+        setAudioId(null);
       }
     },
-    [removeFile, selectedQueueItemId, setTranscription, setSelectedFile, setDiarization]
+    [
+      removeFile,
+      selectedQueueItemId,
+      audioId,
+      setTranscription,
+      setSelectedFile,
+      setDiarization,
+      setAudioId,
+    ]
   );
 
   const clearCompletedFromQueue = useCallback((): void => {
@@ -275,6 +303,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       isTranscribing: isProcessing,
       transcription,
       diarization,
+      audioId,
+      diarizeStatus,
       error,
       modelDownloaded,
       duplicateFilesSkipped,
@@ -291,6 +321,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       isProcessing,
       transcription,
       diarization,
+      audioId,
+      diarizeStatus,
       error,
       modelDownloaded,
       duplicateFilesSkipped,
@@ -320,6 +352,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       dismissQueueResumePrompt,
       resumePersistedQueue,
       updateCurrentDiarization,
+      runDiarization,
+      cancelDiarization,
     }),
     [
       setSelectedFile,
@@ -337,6 +371,8 @@ export function AppProvider({ children }: AppProviderProps): React.JSX.Element {
       dismissQueueResumePrompt,
       resumePersistedQueue,
       updateCurrentDiarization,
+      runDiarization,
+      cancelDiarization,
     ]
   );
 

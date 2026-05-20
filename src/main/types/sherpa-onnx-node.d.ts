@@ -36,4 +36,29 @@ declare module 'sherpa-onnx-node' {
   }
 
   export function readWave(path: string): Wave;
+
+  /**
+   * Used by SpeakerEmbeddingExtractor (and other streaming primitives) as
+   * the in-memory audio buffer wrapper. We only need a tiny subset of its
+   * API for offline embedding extraction.
+   */
+  export class OnlineStream {
+    acceptWaveform(arg: { sampleRate: number; samples: Float32Array }): void;
+    inputFinished(): void;
+  }
+
+  export interface SpeakerEmbeddingExtractorConfig {
+    model: string;
+    numThreads?: number;
+    debug?: boolean | number;
+    provider?: string;
+  }
+
+  export class SpeakerEmbeddingExtractor {
+    constructor(config: SpeakerEmbeddingExtractorConfig);
+    readonly dim: number;
+    createStream(): OnlineStream;
+    isReady(stream: OnlineStream): boolean;
+    compute(stream: OnlineStream, enableExternalBuffer?: boolean): Float32Array;
+  }
 }

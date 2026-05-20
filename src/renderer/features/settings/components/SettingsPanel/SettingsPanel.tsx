@@ -23,7 +23,6 @@ import { GpuStatus } from '../GpuStatus';
 import { ModelSelector } from '../ModelSelector';
 import { ModelDetails } from '../ModelDetails';
 import { LanguageSelector } from '../LanguageSelector';
-import { DiarizationToggle } from '../DiarizationToggle';
 import { useTranslation } from '../../../../i18n';
 
 export interface SettingsPanelProps {
@@ -162,13 +161,9 @@ function SettingsPanel({
 
       <GpuStatus gpuInfo={gpuInfo} />
 
-      <DiarizationToggle
-        enabled={settings.diarize === true}
-        disabled={disabled}
-        onChange={(diarize) => onChange({ ...settings, diarize })}
-        speakerCount={settings.diarizeSpeakers}
-        onSpeakerCountChange={(diarizeSpeakers) => onChange({ ...settings, diarizeSpeakers })}
-      />
+      {/* The diarization toggle is intentionally removed: speaker
+          identification is now a separate post-transcription action,
+          configurable from its own panel after a transcript is ready. */}
 
       <ModelSelector
         models={models}

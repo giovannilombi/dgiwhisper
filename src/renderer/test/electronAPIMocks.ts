@@ -46,6 +46,16 @@ export const createDefaultElectronAPIMock = (): ElectronAPI => ({
   downloadUpdate: vi.fn().mockResolvedValue({ success: true }),
   installUpdate: vi.fn(),
   onUpdateStatus: vi.fn().mockReturnValue(() => {}),
+  isDiarizationAvailable: vi.fn().mockResolvedValue(true),
+  diarizeRun: vi.fn().mockResolvedValue({
+    success: true,
+    segments: [],
+    speakerCount: 0,
+    strategy: 'sherpa-fresh',
+    cached: false,
+  }),
+  diarizeCancel: vi.fn().mockResolvedValue({ success: true }),
+  diarizeReleaseAudio: vi.fn().mockResolvedValue({ success: true }),
 });
 
 export const createFullElectronAPIMock = (): ElectronAPI => ({
@@ -85,6 +95,16 @@ export const createFullElectronAPIMock = (): ElectronAPI => ({
   downloadUpdate: vi.fn().mockResolvedValue({ success: true }),
   installUpdate: vi.fn(),
   onUpdateStatus: vi.fn().mockReturnValue(() => {}),
+  isDiarizationAvailable: vi.fn().mockResolvedValue(true),
+  diarizeRun: vi.fn().mockResolvedValue({
+    success: true,
+    segments: [],
+    speakerCount: 0,
+    strategy: 'sherpa-fresh',
+    cached: false,
+  }),
+  diarizeCancel: vi.fn().mockResolvedValue({ success: true }),
+  diarizeReleaseAudio: vi.fn().mockResolvedValue({ success: true }),
 });
 
 export class ElectronAPIMockBuilder {

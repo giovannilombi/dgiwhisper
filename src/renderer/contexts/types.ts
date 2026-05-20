@@ -30,12 +30,22 @@ export interface HistoryContextValue {
   selectHistoryItem: (item: HistoryItem) => void;
 }
 
+export interface DiarizationRunStatus {
+  running: boolean;
+  error: string | null;
+  strategy?: 'channel' | 'sherpa-fresh' | 'sherpa-recluster';
+  cached?: boolean;
+}
+
 export interface TranscriptionStateContextValue {
   selectedFile: SelectedFile | null;
   settings: TranscriptionSettings;
   isTranscribing: boolean;
   transcription: string;
   diarization: DiarizationContextState | null;
+  /** Session-scoped id of the cached audio for the currently-selected transcript. */
+  audioId: string | null;
+  diarizeStatus: DiarizationRunStatus;
   error: string | null;
   modelDownloaded: boolean;
   duplicateFilesSkipped: number;
@@ -66,6 +76,8 @@ export interface TranscriptionActionsContextValue {
     segments: TranscribedSegment[];
     labels: Record<number, string>;
   }) => void;
+  runDiarization: (params?: { numClusters?: number; threshold?: number }) => Promise<void>;
+  cancelDiarization: () => Promise<void>;
 }
 
 export interface TranscriptionContextValue

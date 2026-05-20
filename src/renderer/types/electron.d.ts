@@ -13,7 +13,29 @@ import type {
   MemoryUsage,
   Unsubscribe,
   UpdateStatus,
+  TranscribedSegment,
 } from './index';
+
+export interface DiarizeRunParams {
+  numClusters?: number;
+  threshold?: number;
+  minDurationRatio?: number;
+}
+
+export type DiarizeRunResponse =
+  | {
+      success: true;
+      cancelled: true;
+    }
+  | {
+      success: true;
+      cancelled?: false;
+      segments: TranscribedSegment[];
+      speakerCount: number;
+      strategy: 'channel' | 'sherpa-fresh' | 'sherpa-recluster';
+      cached: boolean;
+    }
+  | { success: false; error: string };
 
 export interface ModelsListResponse {
   models: ModelInfo[];
@@ -48,6 +70,12 @@ export interface ElectronAPI {
   startTranscription: (options: TranscriptionOptions) => Promise<TranscriptionResult>;
   cancelTranscription: () => Promise<CancelResult>;
   onTranscriptionProgress: (callback: (data: TranscriptionProgress) => void) => Unsubscribe;
+
+  // Diarization (separate from transcription).
+  isDiarizationAvailable: () => Promise<boolean>;
+  diarizeRun: (audioId: string, params?: DiarizeRunParams) => Promise<DiarizeRunResponse>;
+  diarizeCancel: () => Promise<{ success: boolean }>;
+  diarizeReleaseAudio: (audioId: string) => Promise<{ success: boolean }>;
   getAppInfo: () => Promise<AppInfo>;
   getMemoryUsage: () => Promise<MemoryUsage>;
   trackEvent: (

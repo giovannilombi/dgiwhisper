@@ -1,0 +1,1 @@
+export { DiarizationPanel } from './DiarizationPanel';

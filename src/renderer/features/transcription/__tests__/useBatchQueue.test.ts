@@ -611,7 +611,8 @@ describe('useBatchQueue', () => {
           name: 'audio1.mp3',
           path: '/path/to/audio1.mp3',
         }),
-        null
+        null,
+        undefined
       );
     });
 

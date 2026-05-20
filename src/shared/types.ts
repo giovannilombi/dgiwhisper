@@ -37,11 +37,6 @@ export type OutputFormat = 'vtt' | 'srt' | 'txt' | 'json' | 'docx' | 'pdf' | 'md
 export interface TranscriptionSettings {
   model: WhisperModelName;
   language: LanguageCode;
-  diarize?: boolean;
-  // Optional: number of speakers the user expects. When set, the
-  // diarization engine is forced to produce exactly this many clusters.
-  // Undefined (default "Auto") lets the algorithm guess via threshold.
-  diarizeSpeakers?: number;
 }
 
 export type QualityLevel = 1 | 2 | 3 | 4 | 5;
@@ -90,8 +85,6 @@ export interface TranscriptionOptions {
   model: WhisperModelName;
   language: LanguageCode;
   outputFormat: OutputFormat;
-  diarize?: boolean;
-  diarizeSpeakers?: number;
 }
 
 export interface TranscribedSegment {
@@ -106,8 +99,40 @@ export interface TranscriptionResult {
   text?: string;
   cancelled?: boolean;
   error?: string;
+  /**
+   * Opaque session-scoped id of the cached audio entry. Pass it to the
+   * diarization IPC to run speaker identification on this transcript
+   * without re-loading the audio. Available only while the app session
+   * lives — closing the app wipes the cache.
+   */
+  audioId?: string;
+  /**
+   * Optional speaker-labeled segments. Legacy field: kept on the type
+   * so older history entries deserialize cleanly, but the new pipeline
+   * never populates it — diarization lives in a separate result.
+   */
   segments?: TranscribedSegment[];
   speakers?: number;
+}
+
+/**
+ * One run of diarization on a transcript. Multiple versions (up to a
+ * small cap) can be saved per transcript so the user can flip between
+ * different parameter choices without re-running.
+ */
+export interface DiarizationVersion {
+  id: string;
+  createdAt: string;
+  params: {
+    numClusters?: number;
+    threshold?: number;
+    /** Indicates whether the channel-based fast-path was used. */
+    strategy: 'channel' | 'sherpa-fresh' | 'sherpa-recluster';
+  };
+  segments: TranscribedSegment[];
+  speakerCount: number;
+  /** User-supplied labels per speaker id. */
+  labels?: Record<number, string>;
 }
 
 export interface DiarizationSegment {
@@ -155,6 +180,21 @@ export interface HistoryItem {
   duration: number;
   preview: string;
   fullText: string;
+  /**
+   * Session-scoped audio id, valid while the audio cache hasn't been
+   * wiped. Lets the renderer drive a new diarization run on this
+   * transcript without re-loading the source file. The field is
+   * omitted on history items hydrated from disk in a fresh session.
+   */
+  audioId?: string;
+  /**
+   * Persisted diarization runs for this transcript. Capped to 3 by the
+   * storage layer; older versions are evicted in FIFO order unless the
+   * user explicitly deletes a different one to make room.
+   */
+  diarizationVersions?: DiarizationVersion[];
+  // Legacy single-version fields kept so previously-saved history items
+  // hydrate without crashing. The new code path writes diarizationVersions.
   segments?: TranscribedSegment[];
   speakerCount?: number;
   speakerLabels?: Record<string, string>;

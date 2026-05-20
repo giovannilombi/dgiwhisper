@@ -14,19 +14,10 @@ import type {
   ModelInfo,
   GpuInfo,
   QualityLevel,
-  TranscribedSegment,
 } from '../../shared/types';
 import { sanitizePath } from '../../shared/utils';
 import { detectGpuStatus } from './gpu-detector';
-import { runDiarization } from './diarization';
-import {
-  parseVtt,
-  splitSegmentsBySpeakers,
-  parseWhisperJsonFull,
-  mergeTokensWithDiarization,
-  dropTinyDiarizationClusters,
-  remapSpeakers,
-} from '../utils/diarization-merge';
+import { audioCache } from './audio-cache';
 import log from 'electron-log';
 
 interface WhisperModelInfo {
@@ -418,6 +409,12 @@ export function checkGpuStatus(): GpuInfo {
 // wav file even exists on disk.
 const FFMPEG_DURATION_RE = /Duration:\s*(\d+):(\d{2}):(\d{2})(?:\.(\d+))?/;
 
+// ffmpeg reports the input audio layout on its `Stream #...: Audio: ...`
+// line in stderr — e.g. "Audio: pcm_s16le ... 48000 Hz, stereo, ...".
+// We match the SOURCE stream (the first occurrence), not our output
+// stream, because the output is always mono by our choice.
+const FFMPEG_INPUT_AUDIO_RE = /Stream #0:\d+(?:\([\w ]+\))?: Audio: [^\n]*?, (?:\d+) Hz, ([^,\n]+)/;
+
 function parseFfmpegDurationSec(stderrChunk: string): number | null {
   const m = stderrChunk.match(FFMPEG_DURATION_RE);
   if (!m) return null;
@@ -429,19 +426,44 @@ function parseFfmpegDurationSec(stderrChunk: string): number | null {
   return Number.isFinite(total) && total > 0 ? total : null;
 }
 
+function parseFfmpegInputChannelCount(stderrChunk: string): number | null {
+  const m = stderrChunk.match(FFMPEG_INPUT_AUDIO_RE);
+  if (!m) return null;
+  const layout = m[1]!.trim().toLowerCase();
+  if (layout === 'mono') return 1;
+  if (layout === 'stereo') return 2;
+  // ffmpeg labels other layouts like "5.1", "5.1(side)", or "8 channels".
+  const channelsMatch = layout.match(/^(\d+)\s+channels?$/);
+  if (channelsMatch) return parseInt(channelsMatch[1]!, 10);
+  if (layout.includes('5.1')) return 6;
+  if (layout.includes('7.1')) return 8;
+  return null;
+}
+
+function findFfmpegBinary(): string {
+  for (const p of getFfmpegPaths()) {
+    if (p === 'ffmpeg' || fs.existsSync(p)) return p;
+  }
+  return 'ffmpeg';
+}
+
+interface ConvertResult {
+  outputPath: string;
+  inputChannelCount: number | null;
+}
+
 function convertToWav(
   inputPath: string,
   outputPath: string,
-  onDurationDetected?: (durationSec: number) => void
-): Promise<string> {
+  options?: {
+    channels?: 1 | 2;
+    onDurationDetected?: (durationSec: number) => void;
+  }
+): Promise<ConvertResult> {
+  const channels = options?.channels ?? 1;
+  const onDurationDetected = options?.onDurationDetected;
   return new Promise((resolve, reject) => {
-    let ffmpegPath = 'ffmpeg';
-    for (const p of getFfmpegPaths()) {
-      if (p === 'ffmpeg' || fs.existsSync(p)) {
-        ffmpegPath = p;
-        break;
-      }
-    }
+    const ffmpegPath = findFfmpegBinary();
 
     const args = [
       '-i',
@@ -450,7 +472,7 @@ function convertToWav(
       '-ar',
       '16000', // 16kHz sample rate (required by Whisper)
       '-ac',
-      '1', // Mono
+      String(channels),
       '-c:a',
       'pcm_s16le', // 16-bit PCM
       '-y', // Overwrite output
@@ -477,7 +499,7 @@ function convertToWav(
 
     proc.on('close', (code) => {
       if (code === 0) {
-        resolve(outputPath);
+        resolve({ outputPath, inputChannelCount: parseFfmpegInputChannelCount(stderr) });
       } else {
         reject(new Error(`FFmpeg conversion failed: ${stderr}`));
       }
@@ -493,10 +515,9 @@ export function transcribe(
   options: TranscriptionOptions,
   onProgress?: (progress: TranscriptionProgress) => void
 ): Promise<TranscriptionResult> & { cancel?: () => void } {
-  const { filePath, model, language, outputFormat, diarize, diarizeSpeakers } = options;
+  const { filePath, model, language, outputFormat } = options;
   let proc: ChildProcess | null = null;
   let cancelled = false;
-  const diarizationAbort = new AbortController();
 
   const promise = new Promise<TranscriptionResult>((resolve, reject) => {
     const run = async () => {
@@ -528,51 +549,74 @@ export function transcribe(
 
       onProgress?.({ percent: 5, status: 'Preparing audio...', phase: 'preparing' });
 
-      const ext = path.extname(filePath).toLowerCase();
-      let audioPath = filePath;
-      let tempWavPath: string | null = null;
+      // We always convert to a 16 kHz mono PCM-16 wav, even when the input
+      // is already wav — it might be 44.1 kHz / stereo, and downstream
+      // sherpa-onnx needs the canonical format. We additionally produce
+      // a stereo version when the source has ≥2 channels, so that the
+      // diarize-service can later evaluate the channel-based fast-path.
+      let monoWavPath = audioCache.buildTempPath('whisperdesk_mono');
+      let stereoWavPath: string | null = null;
+      let inputChannelCount: number | null = null;
       let audioDurationSec: number | undefined;
+      let audioPath = monoWavPath;
 
-      // Diarization needs a guaranteed 16 kHz mono wav, so we force-convert
-      // even when the input is already .wav (it may be 44.1 kHz / stereo).
-      const needsWavConversion = ext !== '.wav' || diarize === true;
-      if (needsWavConversion) {
-        tempWavPath = path.join(app.getPath('temp'), `whisperdesk_${crypto.randomUUID()}.wav`);
-        try {
-          audioPath = await convertToWav(filePath, tempWavPath, (durationSec) => {
+      try {
+        const convertResult = await convertToWav(filePath, monoWavPath, {
+          channels: 1,
+          onDurationDetected: (durationSec) => {
             audioDurationSec = durationSec;
-            // Surface the duration as soon as ffmpeg has read the input
-            // header, so the queue can show an ETA during conversion already.
             onProgress?.({
               percent: 10,
               status: 'Converting audio...',
               phase: 'converting',
               audioDurationSec,
             });
-          });
-          onProgress?.({
-            percent: 15,
-            status: 'Audio converted. Starting transcription...',
-            phase: 'converting',
-            audioDurationSec,
-          });
+          },
+        });
+        monoWavPath = convertResult.outputPath;
+        audioPath = monoWavPath;
+        inputChannelCount = convertResult.inputChannelCount;
+        onProgress?.({
+          percent: 15,
+          status: 'Audio converted. Starting transcription...',
+          phase: 'converting',
+          audioDurationSec,
+        });
+      } catch (err) {
+        try {
+          if (fs.existsSync(monoWavPath)) fs.unlinkSync(monoWavPath);
+        } catch (e) {
+          console.error('Failed to delete temp wav file on conversion error:', e);
+        }
+        reject(err);
+        return;
+      }
+
+      if (inputChannelCount !== null && inputChannelCount >= 2) {
+        // Worth keeping the stereo around in case the user later kicks off
+        // diarization — the channel-based fast-path needs it. Failures
+        // here are non-fatal: we just won't have the fast-path option.
+        const candidate = audioCache.buildTempPath('whisperdesk_stereo');
+        try {
+          await convertToWav(filePath, candidate, { channels: 2 });
+          stereoWavPath = candidate;
         } catch (err) {
+          log.warn('[transcribe] stereo conversion failed; channel fast-path unavailable', {
+            message: err instanceof Error ? err.message : String(err),
+          });
           try {
-            if (fs.existsSync(tempWavPath)) fs.unlinkSync(tempWavPath);
-          } catch (e) {
-            console.error('Failed to delete temp wav file on conversion error:', e);
+            if (fs.existsSync(candidate)) fs.unlinkSync(candidate);
+          } catch {
+            /* ignore */
           }
-          reject(err);
-          return;
         }
       }
 
-      // Fallback when no conversion happened (input is already a 16 kHz mono
-      // 16-bit wav): derive duration from the file size. 1s ≈ 32_000 bytes;
-      // the 44-byte header is close enough for a UI estimate.
+      // Fallback duration estimate when ffmpeg didn't report one — derive
+      // from the wav file size (1 s ≈ 32_000 bytes at 16 kHz mono PCM-16).
       if (audioDurationSec === undefined) {
         try {
-          if (audioPath && fs.existsSync(audioPath)) {
+          if (fs.existsSync(audioPath)) {
             const sizeBytes = fs.statSync(audioPath).size;
             audioDurationSec = Math.max(0, (sizeBytes - 44) / 32_000);
           }
@@ -589,25 +633,35 @@ export function transcribe(
       });
 
       const outputBase = path.join(app.getPath('temp'), `whisper_output_${crypto.randomUUID()}`);
+      const txtPath = outputBase + '.txt';
+      const vttPath = outputBase + '.vtt';
+      const jsonPath = outputBase + '.json';
 
-      const cleanupFiles = () => {
+      // Only the .txt file is a transient artefact; the .vtt and .json
+      // outputs are kept and handed to the audio cache so the diarize-
+      // service can align tokens against the diarization timeline later
+      // without re-transcribing.
+      const cleanupTransientOnly = () => {
         try {
-          if (tempWavPath && fs.existsSync(tempWavPath)) {
-            fs.unlinkSync(tempWavPath);
-          }
+          if (fs.existsSync(txtPath)) fs.unlinkSync(txtPath);
+        } catch (e) {
+          console.error('Failed to delete transient transcript files:', e);
+        }
+      };
+
+      const cleanupEverything = () => {
+        try {
+          if (fs.existsSync(monoWavPath)) fs.unlinkSync(monoWavPath);
+          if (stereoWavPath && fs.existsSync(stereoWavPath)) fs.unlinkSync(stereoWavPath);
         } catch (e) {
           console.error('Failed to delete temp wav file:', e);
         }
-
         try {
-          const txtPath = outputBase + '.txt';
-          const vttPath = outputBase + '.vtt';
-          const jsonPath = outputBase + '.json';
           if (fs.existsSync(txtPath)) fs.unlinkSync(txtPath);
           if (fs.existsSync(vttPath)) fs.unlinkSync(vttPath);
           if (fs.existsSync(jsonPath)) fs.unlinkSync(jsonPath);
         } catch (e) {
-          console.error('Failed to delete output files:', e);
+          console.error('Failed to delete whisper output files:', e);
         }
       };
 
@@ -618,6 +672,7 @@ export function transcribe(
         audioPath,
         '--output-txt', // Output plain text
         '--output-vtt', // Output VTT subtitles
+        '--output-json-full', // Token-level timings, consumed by diarize-service
         '--no-timestamps', // Don't print timestamps in main output (we use VTT)
         '--max-len',
         String(SUBTITLE_MAX_SEGMENT_CHARS),
@@ -626,15 +681,6 @@ export function transcribe(
         '-of',
         outputBase,
       ];
-
-      // When diarizing, also ask whisper for token-level timings via
-      // --output-json-full. The diarization merge uses these to assign
-      // each word to a speaker by its actual timestamp instead of guessing
-      // proportionally inside a long cue — that's the only way to keep
-      // text aligned with the player when speakers exchange mid-cue.
-      if (diarize === true) {
-        args.push('--output-json-full');
-      }
 
       // whisper.cpp defaults to English when -l is omitted.
       // Pass 'auto' explicitly to enable language auto-detection.
@@ -649,7 +695,7 @@ export function transcribe(
       proc = child;
 
       if (!child.stdout || !child.stderr) {
-        cleanupFiles();
+        cleanupEverything();
         reject(new Error('Failed to spawn whisper process'));
         return;
       }
@@ -680,21 +726,18 @@ export function transcribe(
 
       child.on('close', async (code: number) => {
         if (cancelled) {
-          cleanupFiles();
+          cleanupEverything();
           resolve({ success: true, cancelled: true, text: '' });
           return;
         }
 
         if (code !== 0) {
-          cleanupFiles();
+          cleanupEverything();
           console.error('Transcription process exited with code', code);
           console.error('Stderr:', stderr);
           reject(new Error(stderr || 'Transcription failed'));
           return;
         }
-
-        const txtPath = outputBase + '.txt';
-        const vttPath = outputBase + '.vtt';
 
         let text = stdout.trim();
         if (fs.existsSync(txtPath) && !text) {
@@ -707,7 +750,7 @@ export function transcribe(
         }
 
         if (!text && !vtt) {
-          cleanupFiles();
+          cleanupEverything();
           console.error('Transcription failed: No output generated.', {
             txtPath: sanitizePath(txtPath),
             vttPath: sanitizePath(vttPath),
@@ -721,161 +764,37 @@ export function transcribe(
           return;
         }
 
-        let diarizationFields: { segments?: TranscribedSegment[]; speakers?: number } = {};
-        const wantsDiarization = diarize === true;
-        log.info('[transcribe] diarization branch entry', {
-          wantsDiarization,
-          hasVtt: Boolean(vtt),
-          audioPath: sanitizePath(audioPath),
-          audioExists: audioPath ? fs.existsSync(audioPath) : false,
+        // Hand the wavs + whisper output to the session-scoped audio
+        // cache. From here on, the file lifecycle is the cache's
+        // responsibility — including deletion at app quit or on explicit
+        // release from the renderer.
+        const cacheEntry = audioCache.register({
+          originalFileName: path.basename(filePath),
+          monoWavPath,
+          stereoWavPath: stereoWavPath ?? undefined,
+          whisperJsonPath: fs.existsSync(jsonPath) ? jsonPath : undefined,
+          whisperVttPath: fs.existsSync(vttPath) ? vttPath : undefined,
+          durationSec: audioDurationSec,
         });
-        if (wantsDiarization && vtt && audioPath && fs.existsSync(audioPath)) {
-          onProgress?.({
-            percent: 92,
-            status: 'Identifying speakers...',
-            phase: 'diarizing',
-            audioDurationSec,
-          });
-          try {
-            log.info('[transcribe] starting diarization');
-            const rawDiarSegs = await runDiarization(
-              audioPath,
-              typeof diarizeSpeakers === 'number' && diarizeSpeakers > 0
-                ? { numClusters: diarizeSpeakers }
-                : {},
-              diarizationAbort.signal
-            );
-            // If the user picked an explicit speaker count we trust it
-            // and skip the cull. With "Auto Detect", drop micro-clusters
-            // (< 5% of total speaking time) — these are almost always
-            // diarizer noise rather than a real participant. 5% is a
-            // little more aggressive than the 3% we used to ship: on
-            // TitaNet it's still well below any genuine participant
-            // share in a normal 2-4 speaker conversation, but it kills
-            // the long tail of "9 cluster instead of 2" cases.
-            const diarSegs =
-              typeof diarizeSpeakers === 'number' && diarizeSpeakers > 0
-                ? rawDiarSegs
-                : dropTinyDiarizationClusters(rawDiarSegs, 0.05);
-            const rawSpeakers = new Set(rawDiarSegs.map((s) => s.speaker)).size;
-            const culledSpeakers = new Set(diarSegs.map((s) => s.speaker)).size;
-            // Per-speaker total speech time (in seconds), useful when the
-            // count of clusters looks wrong: lets you immediately see if
-            // sherpa thinks one speaker is doing 99% of the talking or
-            // if the load is more evenly split.
-            const perSpeakerSec = new Map<number, number>();
-            for (const s of rawDiarSegs) {
-              perSpeakerSec.set(s.speaker, (perSpeakerSec.get(s.speaker) ?? 0) + (s.end - s.start));
-            }
-            log.info('[transcribe] diarization returned', {
-              rawSegmentCount: rawDiarSegs.length,
-              culledSegmentCount: diarSegs.length,
-              rawSpeakers,
-              culledSpeakers,
-              rawDurationsSec: [...perSpeakerSec.entries()]
-                .map(([sp, d]) => `${sp}:${d.toFixed(1)}`)
-                .join(' '),
-            });
-
-            // Prefer the precise token-level merge using whisper's
-            // --output-json-full timings; fall back to the proportional
-            // VTT splitter if the JSON file isn't readable for any reason.
-            const jsonPath = outputBase + '.json';
-            let tagged: ReturnType<typeof splitSegmentsBySpeakers> = [];
-            let mergeStrategy: 'tokens' | 'split' = 'split';
-            // Also parse the VTT so we can cross-check how much text each
-            // path produced — useful when chunks of transcript appear to
-            // be missing in the diarized view: comparing the VTT cue
-            // count to the token-merge segment count tells us which
-            // stage dropped content.
-            const vttSegs = parseVtt(vtt);
-            const vttCharCount = vttSegs.reduce((sum, s) => sum + s.text.length, 0);
-
-            if (fs.existsSync(jsonPath)) {
-              try {
-                const jsonText = fs.readFileSync(jsonPath, 'utf-8');
-                const tokens = parseWhisperJsonFull(jsonText);
-                const tokenCharCount = tokens.reduce((sum, t) => sum + t.text.length, 0);
-                if (tokens.length > 0) {
-                  tagged = mergeTokensWithDiarization(tokens, diarSegs);
-                  mergeStrategy = 'tokens';
-                  const mergedCharCount = tagged.reduce((sum, s) => sum + s.text.length, 0);
-                  log.info('[transcribe] using token-level diarization merge', {
-                    tokenCount: tokens.length,
-                    segmentCount: tagged.length,
-                    tokenCharCount,
-                    mergedCharCount,
-                    vttCueCount: vttSegs.length,
-                    vttCharCount,
-                  });
-                  // Sanity check: the merged transcript should be roughly
-                  // the same length as the source token text. If it
-                  // shrinks by more than ~5% we lost content somewhere.
-                  if (tokenCharCount > 0 && mergedCharCount < tokenCharCount * 0.95) {
-                    log.warn('[transcribe] token-merge dropped a significant amount of text', {
-                      tokenCharCount,
-                      mergedCharCount,
-                      ratio: (mergedCharCount / tokenCharCount).toFixed(3),
-                    });
-                  }
-                }
-              } catch (jsonErr) {
-                log.warn('[transcribe] failed to parse whisper json-full output', {
-                  message: jsonErr instanceof Error ? jsonErr.message : String(jsonErr),
-                });
-              }
-            }
-            if (mergeStrategy === 'split') {
-              tagged = splitSegmentsBySpeakers(vttSegs, diarSegs);
-              log.info('[transcribe] falling back to VTT-level diarization merge', {
-                whisperSegments: vttSegs.length,
-                splitSegments: tagged.length,
-              });
-            }
-            const { segments, speakerCount } = remapSpeakers(tagged);
-            log.info('[transcribe] diarization merge complete', {
-              strategy: mergeStrategy,
-              segmentCount: segments.length,
-              speakerCount,
-            });
-            diarizationFields = { segments, speakers: speakerCount };
-          } catch (err) {
-            if (cancelled) {
-              cleanupFiles();
-              resolve({ success: true, cancelled: true, text: '' });
-              return;
-            }
-            log.error('[transcribe] diarization failed; returning transcript without speakers', {
-              message: err instanceof Error ? err.message : String(err),
-              stack: err instanceof Error ? err.stack : undefined,
-            });
-          }
-        } else if (wantsDiarization) {
-          log.warn('[transcribe] diarization skipped despite toggle', {
-            hasVtt: Boolean(vtt),
-            hasAudioPath: Boolean(audioPath),
-          });
-        }
-
-        if (cancelled) {
-          cleanupFiles();
-          resolve({ success: true, cancelled: true, text: '' });
-          return;
-        }
-
-        cleanupFiles();
+        log.info('[transcribe] complete', {
+          audioId: cacheEntry.id,
+          originalFileName: cacheEntry.originalFileName,
+          hasStereo: Boolean(cacheEntry.stereoWavPath),
+          hasJson: Boolean(cacheEntry.whisperJsonPath),
+        });
+        cleanupTransientOnly();
         onProgress?.({ percent: 100, status: 'Complete!', phase: 'complete' });
 
         resolve({
           success: true,
           text: outputFormat === 'vtt' && vtt ? vtt : text,
-          ...diarizationFields,
+          audioId: cacheEntry.id,
         });
       });
 
       child.on('error', (err: Error) => {
         console.error('Failed to spawn whisper process:', err);
-        cleanupFiles();
+        cleanupEverything();
         reject(err);
       });
     };
@@ -887,7 +806,6 @@ export function transcribe(
     if (proc) {
       proc.kill();
     }
-    diarizationAbort.abort();
   };
 
   return promise;

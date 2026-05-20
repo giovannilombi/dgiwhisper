@@ -5,8 +5,18 @@ import type {
   ModelDownloadProgress,
   TranscriptionProgress,
   UpdateStatus,
-  DiarizationOptions,
 } from '../shared/types';
+
+/**
+ * Shape of the parameters accepted by the new diarization service. Kept
+ * inline so we don't drag the whole DiarizeParams interface into the
+ * shared types (the renderer doesn't need any other field).
+ */
+interface DiarizeParams {
+  numClusters?: number;
+  threshold?: number;
+  minDurationRatio?: number;
+}
 
 contextBridge.exposeInMainWorld('electronAPI', {
   openFile: () => ipcRenderer.invoke('dialog:openFile'),
@@ -36,8 +46,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   isDiarizationAvailable: () => ipcRenderer.invoke('diarization:isAvailable'),
-  runDiarization: (wavPath: string, options?: DiarizationOptions) =>
-    ipcRenderer.invoke('diarization:run', wavPath, options),
+  diarizeRun: (audioId: string, params?: DiarizeParams) =>
+    ipcRenderer.invoke('diarize:run', audioId, params),
+  diarizeCancel: () => ipcRenderer.invoke('diarize:cancel'),
+  diarizeReleaseAudio: (audioId: string) => ipcRenderer.invoke('diarize:releaseAudio', audioId),
 
   getAppInfo: () => ipcRenderer.invoke('app:getInfo'),
   getMemoryUsage: () => ipcRenderer.invoke('app:getMemoryUsage'),
