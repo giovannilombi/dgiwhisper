@@ -156,6 +156,8 @@ function HelpModal({ isOpen, onClose }: HelpModalProps): React.JSX.Element | nul
               <dl>
                 <dt>{t('help.usage.step5.mode.title')}</dt>
                 <dd>{t('help.usage.step5.mode.body')}</dd>
+                <dt>{t('help.usage.step5.params.title')}</dt>
+                <dd>{t('help.usage.step5.params.body')}</dd>
                 <dt>{t('help.usage.step5.start.title')}</dt>
                 <dd>{t('help.usage.step5.start.body')}</dd>
                 <dt>{t('help.usage.step5.recluster.title')}</dt>

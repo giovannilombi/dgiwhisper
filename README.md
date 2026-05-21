@@ -11,9 +11,11 @@ Local only, privacy-first AI transcription and diarization.
 ### Added by DGI-Whisper
 
 - **Bundled FFmpeg** - FFmpeg ships inside the app, so the first launch works out of the box. If a newer system FFmpeg is installed (e.g. via Homebrew) it is preferred automatically.
-- **Speaker Diarization (separate flow, opt-in)** - After transcription, switch to the **Individuazione speaker / Speaker identification** tab to run on-device speaker identification on the transcript. Pick _Recommended_ defaults or _Custom_ (auto vs fixed number of speakers + clustering threshold), then start. Re-running with different parameters is **sub-second** thanks to a per-transcript embedding cache. Each transcript keeps up to **3 saved runs** you can flip between or delete. Stereo recordings with one speaker per channel are detected automatically and bypass ML entirely. Runs fully on-device via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) with [pyannote segmentation 3.0](https://huggingface.co/pyannote/segmentation-3.0) + [WeSpeaker ResNet293-LM](https://github.com/wenet-e2e/wespeaker) embeddings (ONNX, bundled). Honest note: the local model has a quality ceiling — expect some mis-attribution on noisy audio, similar voices or strong accents.
-- **Serial job queue** - Transcription and speaker identification compete for the same CPU, so the app runs **one heavy job at a time** globally. Transcriptions always take priority; queued diarizations start as soon as the queue drains. If you need to run a diarization now, the UI prompts to skip the running transcriptions (you can resume them later).
+- **Speaker Diarization (separate flow, opt-in)** - After transcription, switch to the **Individuazione speaker / Speaker identification** tab to run on-device speaker identification on the transcript. Pick _Recommended_ defaults or _Custom_ to unlock six tunable sliders (number of speakers, clustering threshold, minimum speech, minimum silence, drop micro-clusters, token smoothing) plus a one-click Reset. Re-running with different parameters is **sub-second** thanks to a per-transcript embedding cache (only the two segmentation sliders force a full ML pass). Each transcript keeps up to **3 saved runs** you can flip between or delete. Stereo recordings with one speaker per channel are detected automatically and bypass ML entirely. Runs fully on-device via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) with [pyannote segmentation 3.0](https://huggingface.co/pyannote/segmentation-3.0) + [WeSpeaker ResNet293-LM](https://github.com/wenet-e2e/wespeaker) embeddings (ONNX, bundled). Honest note: the local model has a quality ceiling — expect some mis-attribution on noisy audio, similar voices or strong accents.
+- **Serial job queue** - Transcription and speaker identification compete for the same CPU, so the app runs **one heavy job at a time** globally. Transcriptions always take priority; queued diarizations start as soon as the queue drains. If you need to run a diarization now, the UI prompts to skip the running transcriptions (you can resume them later). The × on a queue item is always clickable: on the active item it cancels and advances to the next, on a pending item it simply removes it.
 - **Per-file workspace tabs** - The right panel splits into two tabs per file: **Trascrizione** and **Individuazione speaker**. The diarization tab only appears once a transcript exists. While a diarization runs on file A you can keep transcribing other files; the sidebar shows a small spinner + "Individuazione speaker in corso" on the diarizing file.
+- **Custom transcript names** - Click the pencil icon next to the file name in the right-panel header to rename the transcript (e.g. _Riunione team_ instead of _audio-2024-03-12.m4a_). The custom label shows up in the queue, history, and header, and is saved with the transcription.
+- **Duplicate alerts (no silent skips)** - If you drop a file already in the queue or history, the left panel surfaces a yellow banner where you can **Proceed** (transcribe it again) or **Dismiss** to drop it. Previous behaviour silently skipped duplicates.
 - **Multilingual UI** - Switch between **Italian** and **English** via the flag toggle in the header. The choice persists across sessions. Default is detected from the system locale.
 
 ### Inherited from WhisperDesk
@@ -80,7 +82,8 @@ xattr -cr /Applications/DGI-Whisper.app
 
 - Drag and drop audio or video files (single or batch) into the drop zone, or click it to browse.
 - Multiple files queue up and are processed sequentially.
-- Duplicates (same path / same fingerprint) are auto-skipped.
+- Duplicates (same path / same fingerprint) are no longer silently skipped — they show up as a yellow banner in the left panel where you can **Proceed** to transcribe again or **Dismiss** to drop them.
+- The × on every queue item is always interactive: clicking it on the active item cancels the current run and moves on to the next, clicking it on a pending item simply removes the file from the queue.
 
 ### 2. Configure the transcription
 
@@ -102,15 +105,22 @@ The transcript appears in the **Trascrizione / Transcript** tab of the right pan
 - Use `⌘ F` to open the inline search bar and step through matches.
 - Toggle the media player on/off from the toolbar.
 
-The file name of the transcript you're looking at is always shown in a thin header bar above the tabs, so you can tell which queue item you're working on at a glance.
+The file name of the transcript you're looking at is always shown in a thin header bar above the tabs, so you can tell which queue item you're working on at a glance. Click the **pencil icon** next to the name to set a custom display label (e.g. _Riunione team_ instead of _audio-2024-03-12.m4a_) — the label propagates to the queue, history, and header, and is saved with the transcription.
 
 ### 5. Identify speakers (optional)
 
 Once a transcript is ready, a second tab — **Individuazione speaker / Speaker identification** — appears in the right panel. Open it to run speaker diarization on the transcript.
 
-- **Mode** — _Predefinita_ uses the recommended defaults (auto-detect speakers, threshold 0.5). _Personalizzata_ exposes the speaker count (auto or fixed 2–6) and the clustering threshold slider (only meaningful in auto mode).
+- **Mode** — _Predefinita_ uses the recommended defaults (auto-detect speakers, threshold 0.5). _Personalizzata_ unlocks the full advanced panel — see below — and adds a **Reset to recommended values** button at the top to revert everything in one click.
+- **Advanced parameters (Personalizzata mode)** — six sliders, each with inline help right under it:
+  - **Number of speakers** — `Auto` lets the algorithm decide via the threshold; otherwise force exactly 2–6. Forcing a count is the most reliable option when you know how many people are in the recording.
+  - **Threshold** (0.3–0.8, default 0.5) — clustering sensitivity. Lower = more clusters, higher = fewer. Only used in auto-detect.
+  - **Minimum speech duration** (0.1–3.0 s, default 0.6) — the shortest chunk pyannote will treat as speech. Higher = longer, more stable embeddings (better clusters) but very brief interjections may be absorbed into silence; lower = catches short turns but the embeddings are noisier. ⚠️ Changing this invalidates the embedding cache.
+  - **Minimum silence to split a turn** (0.1–2.0 s, default 0.7) — how long a pause must last to count as a boundary between turns. Higher = breath pauses merge into one turn (less fragmented); lower = every short pause becomes a new boundary. ⚠️ Changing this invalidates the embedding cache.
+  - **Drop micro-clusters below** (0–20 %, default 5 %) — clusters whose total speaking time is below this fraction of the audio are absorbed into the temporally-closest speaker. Higher = more aggressive culling; lower = keeps even minor participants. Only used in auto-detect.
+  - **Token smoothing window** (1–20 tokens, default 5) — after clustering, runs of N or fewer tokens from one speaker flanked by the SAME other speaker on both sides are absorbed. Higher = corrects longer mis-classifications but may flatten real short interjections.
 - **Start identification** — runs sherpa-onnx with the pyannote + WeSpeaker pipeline. The progress bar is indeterminate (the engine doesn't emit percentage) but a rotating status message and the audio-length-÷-3 ETA give you a sense of how long it'll take.
-- **Re-run is sub-second** — after the first run, the embeddings are cached per-transcript. Switching parameters and re-running just re-clusters in JS, no ML needed.
+- **Re-run is sub-second** — after the first run, the embeddings are cached per-transcript. The first four parameters (number of speakers, threshold, drop micro-clusters, token smoothing) just re-cluster in JS. The two segmentation parameters (Minimum speech / Minimum silence) reshape pyannote's segments, so changing them forces a full ML pass.
 - **Up to 3 saved runs per transcript** — every run you start is saved as a version chip with timestamp and params. Click a chip to switch the displayed result, click the trash icon to delete one. The 4th run requires deleting an older one first.
 - **Stereo per-channel shortcut** — for stereo recordings where speaker A is on the left channel and speaker B is on the right (per-channel Zoom exports, telephony, some podcasts), the app detects this and uses channel energy to derive speakers in **milliseconds**, completely bypassing the ML pipeline.
 

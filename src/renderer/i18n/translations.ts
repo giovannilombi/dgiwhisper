@@ -28,7 +28,8 @@ export const en: Dict = {
     'Drag audio or video files (single or batch) onto the drop zone, or click it to browse your Mac.',
   'help.usage.step1.b2':
     'Files queue up and are processed one after the other; you can keep adding while a batch is running.',
-  'help.usage.step1.b3': 'Duplicates (same path or audio fingerprint) are skipped automatically.',
+  'help.usage.step1.b3':
+    'Duplicates (same path or audio fingerprint) are no longer silently skipped — they surface as a yellow banner in the left panel where you can Proceed (transcribe again) or Dismiss to drop them.',
   'help.usage.step2.title': '2. Configure the transcription',
   'help.usage.step2.diarization.title': 'Where did the diarization toggle go?',
   'help.usage.step2.diarization.body':
@@ -44,16 +45,19 @@ export const en: Dict = {
     'Switch the interface between Italian and English with the flag in the header. The UI language is independent from the transcription language.',
   'help.usage.step3.title': '3. Start the transcription',
   'help.usage.step3.body':
-    'Click Transcribe (or press ⌘ Return) to process the queue. Cancel (or Esc) interrupts the current item. Transcriptions run one at a time globally, but you can keep adding files to the queue while one is running.',
+    'Click Transcribe (or press ⌘ Return) to process the queue. Cancel (or Esc) interrupts the current item. Transcriptions run one at a time globally, but you can keep adding files to the queue while one is running. The × on a queue item is always clickable: on the active item it cancels and moves on, on a pending item it just removes it from the queue.',
   'help.usage.step4.title': '4. Review the transcript',
   'help.usage.step4.basic':
-    'The transcript lives in the Trascrizione / Transcript tab of the right panel. The file name of what you are looking at always sits in a thin header bar above the tabs, so you can tell which queue item is on screen. Click any timestamp to jump to that moment in the inline media player; press ⌘ F to open the inline search bar.',
+    'The transcript lives in the Trascrizione / Transcript tab of the right panel. The file name of what you are looking at always sits in a thin header bar above the tabs, so you can tell which queue item is on screen. Click any timestamp to jump to that moment in the inline media player; press ⌘ F to open the inline search bar. Click the pencil icon next to the file name to give the transcript a custom display label — it shows up everywhere (queue, history, header) and is saved alongside the transcription.',
   'help.usage.step5.title': '5. Identify speakers (optional)',
   'help.usage.step5.intro':
     'Once a transcript is ready, a second tab — Individuazione speaker / Speaker identification — appears in the right panel. Open it to run speaker diarization on the transcript.',
   'help.usage.step5.mode.title': 'Pick a mode',
   'help.usage.step5.mode.body':
-    'Recommended uses sensible defaults (auto-detect speakers, threshold 0.5). Custom exposes the speaker count (auto or fixed 2 to 6) and the clustering threshold slider.',
+    'Recommended uses sensible defaults (auto-detect speakers, threshold 0.5). Custom unlocks the full parameter panel — six tunable sliders plus a Reset button at the top to revert everything to the recommended values in one click.',
+  'help.usage.step5.params.title': 'Advanced parameters (Custom mode)',
+  'help.usage.step5.params.body':
+    'Every slider has its own inline help right under it inside the tab. In short: Number of speakers (auto or fixed 2–6) — Threshold (cluster sensitivity, lower = more clusters) — Minimum speech duration & Minimum silence (how pyannote slices the audio into segments; changing either invalidates the embedding cache, so the next run is slow) — Drop micro-clusters below (cull spurious short speakers in auto-detect) — Token smoothing window (absorb single-word speaker flips after clustering). The first four sliders rerun is sub-second thanks to the embedding cache; the two segmentation sliders force a full ML pass.',
   'help.usage.step5.start.title': 'Run it',
   'help.usage.step5.start.body':
     'Click Start identification. The progress bar is indeterminate (the engine does not emit percentage), but a rotating status message and the audio-length-÷-3 ETA give you a sense of how long it will take. Skip cancels the run and leaves the transcript untouched.',
@@ -528,7 +532,7 @@ export const it: Dict = {
   'help.usage.step1.b2':
     "I file si mettono in coda e vengono trascritti uno dopo l'altro; puoi continuare ad aggiungerne mentre la coda è in elaborazione.",
   'help.usage.step1.b3':
-    'I duplicati (stesso path o stessa impronta audio) vengono saltati automaticamente.',
+    'I duplicati (stesso path o stessa impronta audio) non vengono più saltati silenziosamente — compaiono in un banner giallo nel pannello di sinistra dove puoi scegliere Procedi (ri-trascrivi) o Scarta per ignorarli.',
   'help.usage.step2.title': '2. Configura la trascrizione',
   'help.usage.step2.diarization.title': 'Dove è finito il toggle diarizzazione?',
   'help.usage.step2.diarization.body':
@@ -544,16 +548,19 @@ export const it: Dict = {
     "Cambia la lingua dell'interfaccia tra italiano e inglese con la bandierina nell'header. La lingua dell'UI è indipendente dalla lingua audio della trascrizione.",
   'help.usage.step3.title': '3. Avvia la trascrizione',
   'help.usage.step3.body':
-    'Clicca Trascrivi (o premi ⌘ Invio) per processare la coda. Annulla (o Esc) interrompe il file corrente. Le trascrizioni girano una alla volta a livello globale, ma puoi continuare ad aggiungere file alla coda mentre una è in corso.',
+    "Clicca Trascrivi (o premi ⌘ Invio) per processare la coda. Annulla (o Esc) interrompe il file corrente. Le trascrizioni girano una alla volta a livello globale, ma puoi continuare ad aggiungere file alla coda mentre una è in corso. La × su un singolo elemento della coda è sempre cliccabile: sull'item attivo lo annulla e passa al successivo, su un item in attesa lo rimuove e basta.",
   'help.usage.step4.title': '4. Rivedi la trascrizione',
   'help.usage.step4.basic':
-    'La trascrizione vive nella tab Trascrizione del pannello di destra. Il nome del file che stai guardando è sempre mostrato in una barra sottile sopra le tab, così sai sempre a quale item della coda corrisponde. Clicca un timestamp per saltare a quel momento nel player inline; premi ⌘ F per aprire la barra di ricerca.',
+    "La trascrizione vive nella tab Trascrizione del pannello di destra. Il nome del file che stai guardando è sempre mostrato in una barra sottile sopra le tab, così sai sempre a quale item della coda corrisponde. Clicca un timestamp per saltare a quel momento nel player inline; premi ⌘ F per aprire la barra di ricerca. Clicca l'icona a matita accanto al nome file per dare alla trascrizione un'etichetta personalizzata — compare ovunque (coda, cronologia, header) e viene salvata insieme alla trascrizione.",
   'help.usage.step5.title': '5. Individuazione speaker (opzionale)',
   'help.usage.step5.intro':
     'Una volta pronta la trascrizione, nel pannello di destra appare una seconda tab — Individuazione speaker. Aprila per lanciare la diarizzazione sulla trascrizione.',
   'help.usage.step5.mode.title': 'Scegli la modalità',
   'help.usage.step5.mode.body':
-    'Predefinita usa i parametri consigliati (auto-rileva speaker, threshold 0.5). Personalizzata espone il numero di speaker (auto o fisso da 2 a 6) e lo slider del threshold di clustering.',
+    'Predefinita usa i parametri consigliati (auto-rileva speaker, threshold 0.5). Personalizzata sblocca il pannello completo dei parametri — sei slider regolabili più un pulsante Ripristina in cima per riportare tutto ai valori consigliati con un click.',
+  'help.usage.step5.params.title': 'Parametri avanzati (modalità Personalizzata)',
+  'help.usage.step5.params.body':
+    "Ogni slider ha la sua guida inline appena sotto, dentro la tab. In sintesi: Numero speaker (auto o fisso da 2 a 6) — Threshold (sensibilità del clustering, più basso = più cluster) — Durata minima parlato e Silenzio minimo (come pyannote suddivide l'audio in segmenti; cambiare uno dei due invalida la cache degli embedding, quindi il prossimo run è lento) — Elimina micro-cluster (rimuove speaker spuri molto brevi in auto-rilevamento) — Finestra di smoothing token (assorbe flip di singole parole tra speaker dopo il clustering). I primi quattro slider girano sotto al secondo grazie alla cache degli embedding; i due di segmentazione invece costringono a rifare l'intera passata ML.",
   'help.usage.step5.start.title': 'Avvia',
   'help.usage.step5.start.body':
     "Clicca Avvia individuazione. La barra di avanzamento è indeterminata (il motore non emette percentuale), ma un messaggio di stato a rotazione e l'ETA pari a durata audio ÷ 3 ti danno un'idea dei tempi. Skip annulla l'esecuzione e lascia il transcript intatto.",
