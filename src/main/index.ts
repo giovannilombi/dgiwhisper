@@ -3,6 +3,7 @@ import type { MenuItemConstructorOptions } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc';
 import { initAnalytics, trackEvent, AnalyticsEvents } from './services/analytics';
+import { initAutoUpdater, checkForUpdates } from './services/auto-updater';
 import { safeSend } from './utils/safe-send';
 import { registerMediaProtocolHandler, registerMediaProtocolScheme } from './utils/media-protocol';
 import packageJson from '../../package.json';
@@ -232,6 +233,12 @@ const createWindow = () => {
 app.on('ready', () => {
   registerMediaProtocolHandler();
   createWindow();
+  if (!isDev) {
+    initAutoUpdater(() => mainWindow);
+    setTimeout(() => {
+      checkForUpdates();
+    }, 4000);
+  }
 });
 
 app.on('before-quit', () => {

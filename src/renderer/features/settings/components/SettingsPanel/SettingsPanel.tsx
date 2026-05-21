@@ -24,6 +24,9 @@ import { ModelSelector } from '../ModelSelector';
 import { ModelDetails } from '../ModelDetails';
 import { LanguageSelector } from '../LanguageSelector';
 import { useTranslation } from '../../../../i18n';
+import { useAutoUpdate } from '../../../auto-update/hooks/useAutoUpdate';
+import { Button } from '../../../../components/ui';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 export interface SettingsPanelProps {
   settings: TranscriptionSettings;
@@ -39,6 +42,7 @@ function SettingsPanel({
   onModelStatusChange,
 }: SettingsPanelProps): React.JSX.Element {
   const { t } = useTranslation();
+  const { checkForUpdates, isChecking, updateStatus, error: updateError } = useAutoUpdate();
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [gpuInfo, setGpuInfo] = useState<GpuInfo | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -188,6 +192,31 @@ function SettingsPanel({
         disabled={disabled}
         onChange={handleLanguageChange}
       />
+
+      <div className="settings-update">
+        <h4 className="settings-update-heading">{t('settings.update.heading')}</h4>
+        <Button
+          variant="secondary"
+          onClick={checkForUpdates}
+          disabled={isChecking}
+          icon={<RefreshCw size={14} className={isChecking ? 'spin' : undefined} />}
+          className="settings-update-button"
+        >
+          {isChecking ? t('settings.update.checking') : t('settings.update.button')}
+        </Button>
+        {updateStatus?.status === 'not-available' && !isChecking && (
+          <p className="settings-update-status">{t('settings.update.upToDate')}</p>
+        )}
+        {updateError && !isChecking && (
+          <p className="settings-update-status error">
+            {t('settings.update.error', { error: updateError })}
+          </p>
+        )}
+        <p className="settings-update-warning">
+          <AlertTriangle size={12} aria-hidden="true" />
+          <span>{t('settings.update.warning')}</span>
+        </p>
+      </div>
     </div>
   );
 }

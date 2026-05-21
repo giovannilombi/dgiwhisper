@@ -119,6 +119,13 @@ export const en: Dict = {
   'settings.gpu.noMetal': 'CPU only — Metal not available',
   'settings.gpu.ariaEnabled': 'GPU acceleration: enabled. Using {name}',
   'settings.gpu.ariaDisabled': 'GPU acceleration: disabled. Using {name}',
+  'settings.update.heading': 'Updates',
+  'settings.update.button': 'Check for updates',
+  'settings.update.checking': 'Checking…',
+  'settings.update.upToDate': 'You are on the latest version.',
+  'settings.update.error': 'Could not check for updates: {error}',
+  'settings.update.warning':
+    'When an update is installed, macOS may flag the new version as unverified the first time you open it (because the app is unsigned). If that happens, follow the same System Settings → Privacy & Security → Open Anyway steps from the first launch.',
 
   // Diarization toggle + info modal
   'diarization.toggle': 'Speaker diarization',
@@ -622,6 +629,13 @@ export const it: Dict = {
   'settings.gpu.noMetal': 'Solo CPU — Metal non disponibile',
   'settings.gpu.ariaEnabled': 'Accelerazione GPU: attiva. In uso {name}',
   'settings.gpu.ariaDisabled': 'Accelerazione GPU: disattiva. In uso {name}',
+  'settings.update.heading': 'Aggiornamenti',
+  'settings.update.button': 'Controlla aggiornamenti',
+  'settings.update.checking': 'Controllo in corso…',
+  'settings.update.upToDate': 'Sei già aggiornato alla versione più recente.',
+  'settings.update.error': 'Impossibile controllare gli aggiornamenti: {error}',
+  'settings.update.warning':
+    "Quando installi un aggiornamento, macOS potrebbe contrassegnare la nuova versione come non verificata al primo avvio (l'app non è firmata). Se succede, ripeti la procedura Impostazioni di Sistema → Privacy e sicurezza → Apri comunque, come al primo avvio.",
 
   // Diarization toggle + info modal
   'diarization.toggle': 'Identifica chi parla',
