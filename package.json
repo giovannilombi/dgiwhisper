@@ -30,6 +30,7 @@
     "electron:build:mac": "npm run setup:whisper:universal && npm run setup:diarization && npm run build:dmg-readme && npm run icons && npm run build && electron-builder --mac",
     "electron:build:dir": "npm run setup:whisper:universal && npm run setup:diarization && npm run build:dmg-readme && npm run icons && npm run build && electron-builder --dir",
     "build:dmg-readme": "node scripts/build-dmg-readme.mjs",
+    "release": "bash scripts/release.sh",
     "icons": "npx tsx scripts/generate-icons.ts",
     "preview": "vite preview",
     "setup:whisper": "bash scripts/setup-whisper-cpp.sh",
